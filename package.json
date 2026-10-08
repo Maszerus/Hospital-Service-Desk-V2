@@ -1,0 +1,12 @@
+{
+  "name": "medidesk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Statyczna makieta fikcyjnego szpitalnego Service Desku",
+  "scripts": {
+    "format": "prettier --write public package.json package-lock.json .prettierrc.json"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.9"
+  }
+}

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="MediDesk · statyczna makieta fikcyjnego szpitalnego Service Desku."
+    />
+    <title>Logowanie | MediDesk</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Przejdź do treści</a>
+    <main class="login-page" id="main-content" tabindex="-1">
+      <section class="panel login-card" aria-labelledby="login-title">
+        <a class="brand" href="login.html"
+          >MediDesk<span>Szpital Demonstracyjny · wsparcie IT</span></a
+        >
+        <h1 id="login-title">Logowanie do Service Desku</h1>
+        <p class="notice" id="login-note">
+          To wersja demonstracyjna. Formularz nie loguje i nie przesyła danych.
+          Nie wpisuj prawdziwego hasła.
+        </p>
+        <form aria-describedby="login-note">
+          <div class="field">
+            <label for="email">E-mail</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              autocomplete="off"
+              placeholder="demo@example.invalid"
+            />
+          </div>
+          <div class="field">
+            <label for="password">Hasło</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              autocomplete="off"
+              placeholder="Hasło demonstracyjne"
+            />
+          </div>
+          <div class="actions">
+            <button class="button" type="submit" disabled>
+              Zaloguj się (makieta)
+            </button>
+            <a class="button secondary" href="dashboard.html"
+              >Przejdź do demonstracji</a
+            >
+          </div>
+        </form>
+        <p class="form-note">
+          Wszystkie zgłoszenia i konta w makiecie są fikcyjne.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
