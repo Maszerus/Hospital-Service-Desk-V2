@@ -5,11 +5,76 @@ Express oraz SQLite w Node.js 24.x. Wszystkie zgłoszenia i zgłaszający
 są fikcyjni. Jedyny zatwierdzony wyjątek to cztery konta członków zespołu
 projektowego, używane za ich zgodą. Aplikacja nie wysyła poczty.
 
-Instrukcja opisuje istniejącą implementację w `server.js`,
-`database.js`, `public/js/main.js`, `lab/` i `tests/`.
+Instrukcja opisuje backend w `server.js`, `database.js` i katalogach
+warstw poniżej, frontend w `public/` oraz testy w `lab/` i `tests/`.
 Wykonuj testy 1–10 po kolei. Przed niezależnym powtórzeniem testu wykonaj
 jego przygotowanie i reset. Polecenia terminalowe są dla PowerShell
 uruchomionego w głównym katalogu repozytorium.
+
+## Struktura backendu i odpowiedzialność warstw
+
+```text
+server.js
+database.js
+config/
+  server.js
+  database.js
+routes/
+  apiRoutes.js
+controllers/
+  apiController.js
+services/
+  peopleService.js
+  ticketService.js
+  demoService.js
+  validation.js
+repositories/
+  peopleRepository.js
+  ticketRepository.js
+  databaseRepository.js
+middleware/
+  security.js
+  lab.js
+  errors.js
+scripts/
+  init-db.js
+public/                     frontend bez zmian
+lab/                        osobna lokalna strona i serwer testu CSRF
+tests/
+  server.test.js
+  browser.test.py
+```
+
+| Warstwa                        | Odpowiedzialność                                                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `routes/apiRoutes.js`          | Przypisuje metody i ścieżki do kontrolera, wskazuje wymóg zalogowania. Nie zawiera SQL ani reguł biznesowych.                                                             |
+| `controllers/apiController.js` | Odczytuje body, query i parametry; wywołuje serwisy; przygotowuje JSON, status HTTP i obsługuje cykl sesji logowania/wylogowania.                                         |
+| `services/peopleService.js`    | Waliduje logowanie i wyszukiwanie, sprawdza hasło, tworzy hashe, udostępnia agentów bez hashy.                                                                            |
+| `services/ticketService.js`    | Waliduje zgłoszenie, zgłaszającego, agenta i status. Zezwala na usuwanie tylko zamkniętych zgłoszeń.                                                                      |
+| `services/demoService.js`      | Przygotowuje dane inicjalizacyjne, stały wpis XSS i jego hash CSP oraz waliduje wybór wariantu.                                                                           |
+| `services/validation.js`       | Wspólne sprawdzenie identyfikatorów i zgłaszanie błędów walidacji/reguł do obsługi HTTP.                                                                                  |
+| `repositories/`                | Wykonuje parametryzowane zapytania SQLite. `databaseRepository.js` tworzy/migruje schemat i zapisuje dane początkowe; pozostałe repozytoria obsługują osoby i zgłoszenia. |
+| `middleware/security.js`       | Kontrola Host, sesja, wymóg zalogowania, token CSRF, Origin i format danych API.                                                                                          |
+| `middleware/lab.js`            | Sprawdza wariant z sesji, wybiera dozwolone renderowanie opisu i ustawia CSP; utrzymuje identyfikator stałego wpisu testowego.                                            |
+| `middleware/errors.js`         | Wspólne odpowiedzi dla braku endpointu/strony i błędów; nie ujawnia wewnętrznych błędów SQLite.                                                                           |
+| `config/`                      | Czyta i sprawdza ustawienia nasłuchu, portu, TLS, hasła demonstracyjnego i ścieżki bazy. HOST jest sprawdzany przed otwarciem bazy przez serwer.                          |
+
+`server.js` łączy warstwy, inicjalizuje bazę i laboratorium oraz uruchamia
+i zamyka serwer. `database.js` utrzymuje pojedyncze połączenie SQLite,
+tworzy katalog bazy i ustawia PRAGMA; nie obsługuje zgłoszeń ani HTTP.
+`scripts/init-db.js` używa tego samego serwisu inicjalizacji co aplikacja.
+
+Przepływ zwykłego żądania to **middleware → route → controller → service
+→ repository → SQLite**, a odpowiedź wraca przez kontroler.
+Nie ma fabryk, kontenera zależności ani nowych bibliotek.
+
+Kolejność middleware zachowuje kontrolę Host, parsowanie body,
+sesję, CSP i kontrolę CSRF przed routerem. Wyjątek CSRF w BEFORE nadal
+dotyczy wyłącznie POST/PATCH `/api/tickets/:id/status`. Usuwanie w obu
+wariantach przechodzi pełną ochronę CSRF; serwis sprawdza status,
+a SQL dodatkowo zawiera `WHERE id = ? AND status = 'closed'`.
+AFTER i zwykły start wstawiają opis jako tekst. Ścieżki API, interfejs,
+polecenia startu i resetowania oraz zakres demonstracji nie zmieniły się.
 
 ## Przygotowanie wspólne
 
@@ -888,7 +953,7 @@ własne serwery i usuwa tymczasowe dane; baza prezentacyjna zostaje zachowana.
 
 ```powershell
 npm run format
-npx prettier --check public lab scripts tests server.js database.js README.md package.json package-lock.json .prettierrc.json
+npx prettier --check public lab scripts tests config routes controllers services repositories middleware server.js database.js README.md package.json package-lock.json .prettierrc.json
 ```
 
 Prettier ma `printWidth: 80`. Spodziewany wynik kontroli:
@@ -915,6 +980,31 @@ Po dodaniu usuwania i okna szczegółów wykonano:
 Przy kolejnej prezentacji zapisuj własną datę, wersje i wyniki każdego
 testu 1–10. Zapisane wyniki nie zastępują sprawdzenia ręcznego CSP i dowodów.
 Zmiana samej instrukcji nie zmienia działania aplikacji ani wariantów LAB.
+
+### Regresja po podziale backendu na warstwy
+
+Po refaktoryzacji uruchomiono istniejące testy bez zmiany ich oczekiwanych
+wyników ani zakresu. Importy testów nie wymagały aktualizacji: nadal
+uruchamiają `server.js` i `scripts/init-db.js` jako osobne procesy.
+Skrypt inicjalizacji używa teraz `services/demoService.js`, a skrypt
+formatowania obejmuje wszystkie nowe katalogi backendu.
+
+| Wykonana kontrola                    | Wynik                                                                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`                           | 8/8, 0 błędów; cztery konta agentów, walidacja, zapis/przypisanie, usuwanie BEFORE/AFTER, migracja i reset bazy                                |
+| `python tests/browser.test.py`       | 2/2, OK; automatyczny test Chrome na HTTP i HTTPS                                                                                              |
+| XSS / CSRF BEFORE → AFTER            | Automatycznie potwierdzono rzeczywisty alert, tekst AFTER, zmianę bez tokenu BEFORE, obie odmowy AFTER i poprawny formularz                    |
+| Szczegóły i usuwanie w interfejsie   | Automatycznie potwierdzono okno po zapisie, zgodne pola i przypisanie, obsługę klawiatury, potwierdzenie usunięcia i aktualizację list/pulpitu |
+| Zabezpieczony start / adres nasłuchu | Potwierdzone testami; zwykły start zachowuje ochronę, laboratorium odrzuca adresy inne niż 127.0.0.1                                           |
+| Prettier i składnia JavaScript       | Wszystkie pliki przeszły kontrolę                                                                                                              |
+
+Nie wykonywano po tej refaktoryzacji osobnej ręcznej prezentacji
+wszystkich kroków 1–10 ani ręcznego zbierania zrzutów w DevTools.
+Wyniki przeglądarkowe powyżej pochodzą z automatyzacji istniejącego
+testu, a instrukcje ręczne pozostają do wykonania przez prezentera.
+Testy używały baz i certyfikatów tymczasowych poza repozytorium.
+Frontend `public/`, lokalny serwer strony CSRF i pliki testów nie
+zostały zmienione; API zachowało metody, ścieżki, komunikaty i statusy.
 
 ## Zestawienie API i zasad
 

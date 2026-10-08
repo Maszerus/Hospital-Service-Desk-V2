@@ -1,4 +1,5 @@
-const { database, databasePath, initializeDatabase } = require("../database");
+const { database, databasePath } = require("../database");
+const { initializeDatabase } = require("../services/demoService");
 
 try {
   initializeDatabase(process.argv.includes("--reset"));

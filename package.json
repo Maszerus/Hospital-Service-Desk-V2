@@ -12,7 +12,7 @@
     "db:init": "node scripts/init-db.js",
     "db:reset": "node scripts/init-db.js --reset",
     "test": "node --test tests/server.test.js",
-    "format": "prettier --write public lab scripts tests server.js database.js README.md package.json package-lock.json .prettierrc.json"
+    "format": "prettier --write public lab scripts tests config routes controllers services repositories middleware server.js database.js README.md package.json package-lock.json .prettierrc.json"
   },
   "devDependencies": {
     "prettier": "^3.9.9"
