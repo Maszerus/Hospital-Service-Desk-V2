@@ -311,6 +311,28 @@ tbody tr:focus-within {
 .field {
   margin-bottom: 1.3rem;
 }
+.filter-field {
+  max-width: 20rem;
+}
+.field .form-note {
+  margin: 0.5rem 0 0;
+}
+.form-message {
+  margin: 1rem 0 0;
+}
+.form-message:empty {
+  margin: 0;
+}
+.message-error {
+  color: #a12833;
+}
+.message-success {
+  color: #245d40;
+}
+[aria-invalid="true"] {
+  border-color: #a12833;
+  box-shadow: inset 0 0 0 1px #a12833;
+}
 label {
   display: block;
   margin-bottom: 0.4rem;

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Statyczna makieta fikcyjnego szpitalnego Service Desku",
   "scripts": {
-    "format": "prettier --write public package.json package-lock.json .prettierrc.json"
+    "format": "prettier --write public README.md package.json package-lock.json .prettierrc.json"
   },
   "devDependencies": {
     "prettier": "^3.9.9"

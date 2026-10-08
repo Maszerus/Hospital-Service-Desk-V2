@@ -9,6 +9,7 @@
     />
     <title>Logowanie | MediDesk</title>
     <link rel="stylesheet" href="css/styles.css" />
+    <script src="js/main.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Przejdź do treści</a>
@@ -22,7 +23,12 @@
           To wersja demonstracyjna. Formularz nie loguje i nie przesyła danych.
           Nie wpisuj prawdziwego hasła.
         </p>
-        <form aria-describedby="login-note">
+        <noscript><p>Włącz JavaScript, aby sprawdzić formularz.</p></noscript>
+        <form
+          data-demo-form
+          data-success-message="Formularz logowania jest poprawny. To demonstracja — dane nie zostały wysłane ani zapisane i nie nastąpiło logowanie."
+          aria-describedby="login-note"
+        >
           <div class="field">
             <label for="email">E-mail</label>
             <input
@@ -31,6 +37,7 @@
               name="email"
               autocomplete="off"
               placeholder="demo@example.invalid"
+              required
             />
           </div>
           <div class="field">
@@ -41,6 +48,7 @@
               name="password"
               autocomplete="off"
               placeholder="Hasło demonstracyjne"
+              required
             />
           </div>
           <div class="actions">
@@ -51,6 +59,12 @@
               >Przejdź do demonstracji</a
             >
           </div>
+          <p
+            id="form-message"
+            class="form-message"
+            data-form-message
+            role="status"
+          ></p>
         </form>
         <p class="form-note">
           Wszystkie zgłoszenia i konta w makiecie są fikcyjne.
