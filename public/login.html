@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="MediDesk · statyczna makieta fikcyjnego szpitalnego Service Desku."
+      content="MediDesk · lokalna aplikacja demonstracyjna fikcyjnego szpitalnego Service Desku."
     />
     <title>Logowanie | MediDesk</title>
     <link rel="stylesheet" href="css/styles.css" />
@@ -20,23 +20,20 @@
         >
         <h1 id="login-title">Logowanie do Service Desku</h1>
         <p class="notice" id="login-note">
-          To wersja demonstracyjna. Formularz nie loguje i nie przesyła danych.
-          Nie wpisuj prawdziwego hasła.
+          To lokalna wersja demonstracyjna. Użyj fikcyjnego konta
+          demo01@example.invalid i hasła podanego w terminalu serwera.
         </p>
         <noscript><p>Włącz JavaScript, aby sprawdzić formularz.</p></noscript>
-        <form
-          data-demo-form
-          data-success-message="Formularz logowania jest poprawny. To demonstracja — dane nie zostały wysłane ani zapisane i nie nastąpiło logowanie."
-          aria-describedby="login-note"
-        >
+        <form id="login-form" aria-describedby="login-note">
           <div class="field">
             <label for="email">E-mail</label>
             <input
               type="email"
               id="email"
               name="email"
+              maxlength="254"
               autocomplete="off"
-              placeholder="demo@example.invalid"
+              placeholder="demo01@example.invalid"
               required
             />
           </div>
@@ -46,18 +43,14 @@
               type="password"
               id="password"
               name="password"
+              maxlength="200"
               autocomplete="off"
               placeholder="Hasło demonstracyjne"
               required
             />
           </div>
           <div class="actions">
-            <button class="button" type="submit" disabled>
-              Zaloguj się (makieta)
-            </button>
-            <a class="button secondary" href="dashboard.html"
-              >Przejdź do demonstracji</a
-            >
+            <button class="button" type="submit" disabled>Zaloguj się</button>
           </div>
           <p
             id="form-message"
@@ -67,7 +60,7 @@
           ></p>
         </form>
         <p class="form-note">
-          Wszystkie zgłoszenia i konta w makiecie są fikcyjne.
+          Wszystkie zgłoszenia i konta w aplikacji są fikcyjne.
         </p>
       </section>
     </main>

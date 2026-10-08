@@ -87,6 +87,18 @@ h2 {
 .account p {
   margin: 0;
 }
+.account-button {
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.ticket-description {
+  white-space: pre-wrap;
+}
 .app-layout {
   display: grid;
   grid-template-columns: 15rem minmax(0, 1fr);

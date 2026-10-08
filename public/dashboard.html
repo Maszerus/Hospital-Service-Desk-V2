@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="MediDesk · statyczna makieta fikcyjnego szpitalnego Service Desku."
+      content="MediDesk · lokalna aplikacja demonstracyjna fikcyjnego szpitalnego Service Desku."
     />
     <title>Pulpit | MediDesk</title>
     <link rel="stylesheet" href="css/styles.css" />
+    <script src="js/main.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Przejdź do treści</a>
@@ -17,8 +18,15 @@
         >MediDesk<span>Szpital Demonstracyjny · wsparcie IT</span></a
       >
       <div class="account">
-        <p>Alicja Przykładowa</p>
-        <a href="login.html">Wróć do logowania</a>
+        <p>Sesja demonstracyjna</p>
+        <button
+          type="button"
+          class="account-button"
+          id="logout-button"
+          disabled
+        >
+          Wyloguj się
+        </button>
       </div>
     </header>
     <div class="app-layout">
@@ -33,30 +41,31 @@
         <p>Wersja demonstracyjna.<br />Wszystkie dane są fikcyjne.</p>
       </aside>
       <main id="main-content" tabindex="-1">
+        <p id="page-message" role="status"></p>
         <div class="page-heading">
           <div>
             <p class="eyebrow">Przegląd wsparcia</p>
             <h1>Pulpit</h1>
-            <p>Przykładowy stan zgłoszeń w Szpitalu Demonstracyjnym.</p>
+            <p>Aktualny stan fikcyjnych zgłoszeń w Szpitalu Demonstracyjnym.</p>
           </div>
           <a class="button" href="new-ticket.html">Nowe zgłoszenie</a>
         </div>
         <section class="stats" aria-label="Statystyki zgłoszeń">
           <article class="stat-card">
             <h2>Wszystkie zgłoszenia</h2>
-            <p>3</p>
+            <p data-stat="all">—</p>
           </article>
           <article class="stat-card">
             <h2>Nowe</h2>
-            <p>1</p>
+            <p data-stat="new">—</p>
           </article>
           <article class="stat-card">
             <h2>W trakcie</h2>
-            <p>1</p>
+            <p data-stat="progress">—</p>
           </article>
           <article class="stat-card">
             <h2>Zamknięte</h2>
-            <p>1</p>
+            <p data-stat="closed">—</p>
           </article>
         </section>
         <section class="panel" aria-labelledby="recent-title">
@@ -69,7 +78,7 @@
           >
             <table>
               <caption>
-                Trzy fikcyjne zgłoszenia z 7–8 października 2026 r.
+                Ostatnie fikcyjne zgłoszenia z lokalnej bazy.
               </caption>
               <thead>
                 <tr>
@@ -80,39 +89,13 @@
                   <th scope="col">Data utworzenia</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <a href="ticket-details.html"
-                      >MD-001 · Drukarka nie drukuje</a
-                    >
-                  </td>
-                  <td>Alicja Przykładowa</td>
-                  <td><span class="badge status-progress">W trakcie</span></td>
-                  <td class="priority-high">Wysoki</td>
-                  <td><time datetime="2026-10-08">08.10.2026</time></td>
-                </tr>
-                <tr>
-                  <td>MD-002 · Prośba o dostęp do folderu</td>
-                  <td>Bartosz Testowy</td>
-                  <td><span class="badge status-new">Nowe</span></td>
-                  <td>Średni</td>
-                  <td><time datetime="2026-10-08">08.10.2026</time></td>
-                </tr>
-                <tr>
-                  <td>MD-003 · Wymiana klawiatury</td>
-                  <td>Celina Fikcyjna</td>
-                  <td><span class="badge status-closed">Zamknięte</span></td>
-                  <td>Niski</td>
-                  <td><time datetime="2026-10-07">07.10.2026</time></td>
-                </tr>
-              </tbody>
+              <tbody id="ticket-rows"></tbody>
             </table>
           </div>
           <p><a href="tickets.html">Przejdź do listy zgłoszeń</a></p>
         </section>
         <footer class="site-footer">
-          MediDesk · lokalna makieta Service Desku · dane fikcyjne
+          MediDesk · lokalny demonstracyjny Service Desk · dane fikcyjne
         </footer>
       </main>
     </div>

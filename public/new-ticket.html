@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="MediDesk · statyczna makieta fikcyjnego szpitalnego Service Desku."
+      maxlength="5000"
+      content="MediDesk · lokalna aplikacja demonstracyjna fikcyjnego szpitalnego Service Desku."
     />
     <title>Nowe zgłoszenie | MediDesk</title>
     <link rel="stylesheet" href="css/styles.css" />
@@ -18,8 +19,15 @@
         >MediDesk<span>Szpital Demonstracyjny · wsparcie IT</span></a
       >
       <div class="account">
-        <p>Alicja Przykładowa</p>
-        <a href="login.html">Wróć do logowania</a>
+        <p>Sesja demonstracyjna</p>
+        <button
+          type="button"
+          class="account-button"
+          id="logout-button"
+          disabled
+        >
+          Wyloguj się
+        </button>
       </div>
     </header>
     <div class="app-layout">
@@ -36,18 +44,19 @@
         <p>Wersja demonstracyjna.<br />Wszystkie dane są fikcyjne.</p>
       </aside>
       <main id="main-content" tabindex="-1">
+        <p id="page-message" role="status"></p>
         <div class="page-heading">
           <div>
             <p class="eyebrow">Kontakt z zespołem IT</p>
             <h1>Nowe zgłoszenie</h1>
-            <p>Przykładowy formularz zgłoszenia problemu technicznego.</p>
+            <p>Zgłoś fikcyjny problem techniczny do zespołu IT.</p>
           </div>
         </div>
         <section class="panel form-panel" aria-labelledby="form-title">
           <h2 id="form-title">Dane zgłoszenia</h2>
           <p class="notice" id="ticket-note">
-            Formularz jest makietą i niczego nie zapisuje ani nie wysyła. Używaj
-            wyłącznie fikcyjnych danych, bez informacji o pacjentach.
+            Zgłoszenie zostanie zapisane w lokalnej bazie. Używaj wyłącznie
+            fikcyjnych danych, bez informacji o pacjentach.
           </p>
           <noscript>
             <p>
@@ -55,11 +64,7 @@
               zgłaszającego.
             </p>
           </noscript>
-          <form
-            data-demo-form
-            data-success-message="Formularz zgłoszenia jest poprawny. To demonstracja — zgłoszenie nie zostało wysłane ani zapisane."
-            aria-describedby="ticket-note"
-          >
+          <form id="ticket-form" aria-describedby="ticket-note">
             <div class="field">
               <label for="title">Tytuł zgłoszenia</label>
               <input
@@ -76,6 +81,7 @@
               <textarea
                 id="description"
                 name="description"
+                maxlength="5000"
                 rows="6"
                 required
                 placeholder="Opisz fikcyjny problem i wykonane czynności."
@@ -93,6 +99,7 @@
               <label for="employee-search">Wyszukaj zgłaszającego</label>
               <input
                 id="employee-search"
+                maxlength="100"
                 type="search"
                 placeholder="Imię, nazwisko lub numer pracownika"
                 aria-describedby="search-note search-message"
@@ -105,16 +112,13 @@
             </div>
             <div class="field">
               <label for="reporter">Zgłaszający</label>
-              <select id="reporter" name="reporter" required>
+              <select id="reporter" name="reporterId" required>
                 <option value="">Wybierz zgłaszającego</option>
-                <option value="demo-01">Alicja Przykładowa · DEMO-001</option>
-                <option value="demo-02">Bartosz Testowy · DEMO-002</option>
-                <option value="demo-03">Celina Fikcyjna · DEMO-003</option>
               </select>
             </div>
             <div class="actions">
               <button class="button" type="submit" disabled>
-                Utwórz zgłoszenie (makieta)
+                Utwórz zgłoszenie
               </button>
               <a class="button secondary" href="tickets.html"
                 >Wróć do zgłoszeń</a
@@ -129,7 +133,7 @@
           </form>
         </section>
         <footer class="site-footer">
-          MediDesk · lokalna makieta Service Desku · dane fikcyjne
+          MediDesk · lokalny demonstracyjny Service Desk · dane fikcyjne
         </footer>
       </main>
     </div>

@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="MediDesk · statyczna makieta fikcyjnego szpitalnego Service Desku."
+      content="MediDesk · lokalna aplikacja demonstracyjna fikcyjnego szpitalnego Service Desku."
     />
-    <title>Szczegóły MD-001 | MediDesk</title>
+    <title>Szczegóły zgłoszenia | MediDesk</title>
     <link rel="stylesheet" href="css/styles.css" />
+    <script src="js/main.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Przejdź do treści</a>
@@ -17,8 +18,15 @@
         >MediDesk<span>Szpital Demonstracyjny · wsparcie IT</span></a
       >
       <div class="account">
-        <p>Alicja Przykładowa</p>
-        <a href="login.html">Wróć do logowania</a>
+        <p>Sesja demonstracyjna</p>
+        <button
+          type="button"
+          class="account-button"
+          id="logout-button"
+          disabled
+        >
+          Wyloguj się
+        </button>
       </div>
     </header>
     <div class="app-layout">
@@ -33,67 +41,57 @@
         <p>Wersja demonstracyjna.<br />Wszystkie dane są fikcyjne.</p>
       </aside>
       <main id="main-content" tabindex="-1">
+        <p id="page-message" role="status"></p>
         <div class="page-heading">
           <div>
-            <p class="eyebrow">Zgłoszenie MD-001</p>
-            <h1>Drukarka nie drukuje</h1>
-            <p>Fikcyjne zgłoszenie dotyczące sprzętu biurowego.</p>
+            <p class="eyebrow" id="ticket-number">Zgłoszenie</p>
+            <h1 id="ticket-title">Szczegóły zgłoszenia</h1>
           </div>
           <a class="button secondary" href="tickets.html">Wróć do zgłoszeń</a>
         </div>
         <div class="details-grid">
-          <div>
-            <section class="panel" aria-labelledby="description-title">
-              <h2 id="description-title">Opis problemu</h2>
-              <p>
-                Drukarka w pokoju administracyjnym Demo A nie odpowiada na
-                polecenie wydruku strony testowej. Na wyświetlaczu pojawia się
-                komunikat o braku połączenia.
-              </p>
-              <p>
-                Sprawdzono zasilanie i przewód sieciowy. Prosimy o sprawdzenie
-                konfiguracji urządzenia.
-              </p>
-            </section>
-            <section class="panel" aria-labelledby="history-title">
-              <h2 id="history-title">Historia zgłoszenia</h2>
-              <ol class="timeline">
-                <li>
-                  <time datetime="2026-10-08T09:00">08.10.2026, 09:00</time>
-                  <p>Alicja Przykładowa utworzył zgłoszenie.</p>
-                </li>
-                <li>
-                  <time datetime="2026-10-08T09:20">08.10.2026, 09:20</time>
-                  <p>Technik Demo 01 przyjął zgłoszenie do realizacji.</p>
-                </li>
-              </ol>
-              <p class="form-note">Historia jest statycznym przykładem.</p>
-            </section>
-          </div>
+          <section class="panel" aria-labelledby="description-title">
+            <h2 id="description-title">Opis problemu</h2>
+            <p id="ticket-description" class="ticket-description"></p>
+          </section>
           <section class="panel" aria-labelledby="metadata-title">
             <h2 id="metadata-title">Informacje o zgłoszeniu</h2>
             <dl>
               <dt>Status</dt>
-              <dd><span class="badge status-progress">W trakcie</span></dd>
+              <dd><span id="ticket-status"></span></dd>
               <dt>Priorytet</dt>
-              <dd class="priority-high">Wysoki</dd>
+              <dd id="ticket-priority"></dd>
               <dt>Zgłaszający</dt>
-              <dd>Alicja Przykładowa</dd>
+              <dd id="ticket-reporter"></dd>
               <dt>Kontakt demonstracyjny</dt>
-              <dd>demo01@example.invalid</dd>
-              <dt>Przypisany technik</dt>
-              <dd>Technik Demo 01</dd>
-              <dt>Lokalizacja</dt>
-              <dd>Pokój administracyjny Demo A</dd>
+              <dd id="ticket-email"></dd>
               <dt>Data utworzenia</dt>
-              <dd>
-                <time datetime="2026-10-08T09:00">08.10.2026, 09:00</time>
-              </dd>
+              <dd id="ticket-date"></dd>
             </dl>
           </section>
         </div>
+        <section class="panel form-panel" aria-labelledby="status-title">
+          <h2 id="status-title">Zmień status</h2>
+          <form id="status-form">
+            <div class="field">
+              <label for="status">Status zgłoszenia</label
+              ><select id="status" name="status" required>
+                <option value="new">Nowe</option>
+                <option value="progress">W trakcie</option>
+                <option value="closed">Zamknięte</option>
+              </select>
+            </div>
+            <button class="button" type="submit" disabled>Zapisz status</button>
+            <p
+              id="form-message"
+              data-form-message
+              class="form-message"
+              role="status"
+            ></p>
+          </form>
+        </section>
         <footer class="site-footer">
-          MediDesk · lokalna makieta Service Desku · dane fikcyjne
+          MediDesk · lokalny demonstracyjny Service Desk · dane fikcyjne
         </footer>
       </main>
     </div>

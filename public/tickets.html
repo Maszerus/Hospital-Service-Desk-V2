@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="MediDesk · statyczna makieta fikcyjnego szpitalnego Service Desku."
+      content="MediDesk · lokalna aplikacja demonstracyjna fikcyjnego szpitalnego Service Desku."
     />
     <title>Zgłoszenia | MediDesk</title>
     <link rel="stylesheet" href="css/styles.css" />
@@ -18,8 +18,15 @@
         >MediDesk<span>Szpital Demonstracyjny · wsparcie IT</span></a
       >
       <div class="account">
-        <p>Alicja Przykładowa</p>
-        <a href="login.html">Wróć do logowania</a>
+        <p>Sesja demonstracyjna</p>
+        <button
+          type="button"
+          class="account-button"
+          id="logout-button"
+          disabled
+        >
+          Wyloguj się
+        </button>
       </div>
     </header>
     <div class="app-layout">
@@ -34,11 +41,12 @@
         <p>Wersja demonstracyjna.<br />Wszystkie dane są fikcyjne.</p>
       </aside>
       <main id="main-content" tabindex="-1">
+        <p id="page-message" role="status"></p>
         <div class="page-heading">
           <div>
             <p class="eyebrow">Obsługa zgłoszeń</p>
             <h1>Zgłoszenia</h1>
-            <p>Lista przykładowych spraw przekazanych do zespołu IT.</p>
+            <p>Lista fikcyjnych spraw przekazanych do zespołu IT.</p>
           </div>
           <a class="button" href="new-ticket.html">Nowe zgłoszenie</a>
         </div>
@@ -76,42 +84,12 @@
                   <th scope="col">Data utworzenia</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr data-status="progress">
-                  <td>
-                    <a href="ticket-details.html"
-                      >MD-001 · Drukarka nie drukuje</a
-                    >
-                  </td>
-                  <td>Alicja Przykładowa</td>
-                  <td><span class="badge status-progress">W trakcie</span></td>
-                  <td class="priority-high">Wysoki</td>
-                  <td><time datetime="2026-10-08">08.10.2026</time></td>
-                </tr>
-                <tr data-status="new">
-                  <td>MD-002 · Prośba o dostęp do folderu</td>
-                  <td>Bartosz Testowy</td>
-                  <td><span class="badge status-new">Nowe</span></td>
-                  <td>Średni</td>
-                  <td><time datetime="2026-10-08">08.10.2026</time></td>
-                </tr>
-                <tr data-status="closed">
-                  <td>MD-003 · Wymiana klawiatury</td>
-                  <td>Celina Fikcyjna</td>
-                  <td><span class="badge status-closed">Zamknięte</span></td>
-                  <td>Niski</td>
-                  <td><time datetime="2026-10-07">07.10.2026</time></td>
-                </tr>
-              </tbody>
+              <tbody id="ticket-rows"></tbody>
             </table>
           </div>
         </section>
-        <p class="notice">
-          Szczegóły są dostępne dla przykładowego zgłoszenia MD-001. Pozostałe
-          pozycje przedstawiają różne statusy i priorytety.
-        </p>
         <footer class="site-footer">
-          MediDesk · lokalna makieta Service Desku · dane fikcyjne
+          MediDesk · lokalny demonstracyjny Service Desk · dane fikcyjne
         </footer>
       </main>
     </div>

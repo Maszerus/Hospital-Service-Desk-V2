@@ -2,11 +2,22 @@
   "name": "medidesk",
   "version": "0.1.0",
   "private": true,
-  "description": "Statyczna makieta fikcyjnego szpitalnego Service Desku",
+  "description": "Lokalny demonstracyjny szpitalny Service Desk",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
-    "format": "prettier --write public README.md package.json package-lock.json .prettierrc.json"
+    "start": "node server.js",
+    "db:init": "node scripts/init-db.js",
+    "db:reset": "node scripts/init-db.js --reset",
+    "test": "node --test tests/server.test.js",
+    "format": "prettier --write public scripts tests server.js database.js README.md package.json package-lock.json .prettierrc.json"
   },
   "devDependencies": {
     "prettier": "^3.9.9"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "express-session": "^1.19.0"
   }
 }
