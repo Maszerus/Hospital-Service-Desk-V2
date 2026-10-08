@@ -8,9 +8,15 @@ let csrfToken = "";
 const ticketUpdates = new BroadcastChannel("medidesk-tickets");
 
 async function requestApi(url, method = "GET", body) {
+  if (method !== "GET") {
+    // Sesja mogła się zmienić podczas logowania w innej karcie.
+    const session = await requestApi("/api/session");
+    csrfToken = session.csrfToken;
+  }
   const response = await fetch(url, {
     method,
     credentials: "same-origin",
+    cache: "no-store",
     headers:
       method === "GET"
         ? {}
@@ -26,6 +32,7 @@ async function requestApi(url, method = "GET", body) {
     throw new Error("Niepoprawna odpowiedź serwera.");
   });
   if (!response.ok) {
+    if (response.status === 401) csrfToken = "";
     if (response.status === 401 && !location.pathname.endsWith("login.html")) {
       location.href = "login.html";
     }
@@ -297,6 +304,7 @@ async function initializePage() {
     logoutButton.addEventListener("click", async () => {
       try {
         await requestApi("/api/logout", "POST", {});
+        csrfToken = "";
         location.href = "login.html";
       } catch (error) {
         showMessage(pageMessage, error.message, true);
@@ -312,9 +320,6 @@ async function initializePage() {
         }
       }
       ticketUpdates.addEventListener("message", refreshTickets);
-      window.addEventListener("pageshow", (event) => {
-        if (event.persisted) refreshTickets();
-      });
     }
     const ticketForm = document.querySelector("#ticket-form");
     if (ticketForm) {
@@ -411,4 +416,10 @@ async function initializePage() {
     );
   }
 }
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    csrfToken = "";
+    location.reload();
+  }
+});
 initializePage();

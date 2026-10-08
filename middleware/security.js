@@ -10,15 +10,19 @@ function requireLocalHost(request, response, next) {
   response.set("X-Content-Type-Options", "nosniff");
   next();
 }
+const sessionCookieOptions = {
+  path: "/",
+  httpOnly: true,
+  sameSite: "strict",
+  secure: Boolean(tlsOptions),
+};
 const sessionMiddleware = session({
   name: "medidesk.sid",
   secret: randomBytes(32).toString("hex"),
   resave: false,
   saveUninitialized: false,
   cookie: {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: Boolean(tlsOptions),
+    ...sessionCookieOptions,
     maxAge: 3600000,
   },
 });
@@ -85,6 +89,7 @@ function requireSession(request, response, next) {
 }
 
 module.exports = {
+  sessionCookieOptions,
   requireLocalHost,
   sessionMiddleware,
   getCsrfToken,

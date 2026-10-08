@@ -160,6 +160,101 @@ class BrowserTests(unittest.TestCase):
                         )
 
                     login()
+                    first_session = context.request.get(
+                        f"{origin}/api/session"
+                    ).json()
+                    first_cookie = context.cookies(origin)[0]["value"]
+                    retained_page = context.new_page()
+                    retained_page.goto(f"{origin}/ticket-details.html?id=1")
+                    expect(
+                        retained_page.locator("#status-form button")
+                    ).to_be_enabled()
+                    page.reload()
+                    expect(page.locator("#logout-button")).to_be_enabled()
+                    self.assertEqual(
+                        context.request.get(f"{origin}/api/session").json()[
+                            "csrfToken"
+                        ],
+                        first_session["csrfToken"],
+                    )
+                    with page.expect_response(
+                        lambda response: response.url.endswith("/api/logout")
+                    ) as logged_out:
+                        page.locator("#logout-button").click()
+                    self.assertEqual(logged_out.value.status, 200)
+                    cleared = logged_out.value.all_headers()["set-cookie"]
+                    self.assertIn("medidesk.sid=;", cleared)
+                    self.assertIn("Path=/", cleared)
+                    self.assertIn("1970", cleared)
+                    self.assertEqual("Secure" in cleared, use_https)
+                    page.wait_for_url("**/login.html")
+                    expect(
+                        page.locator('#login-form [type="submit"]')
+                    ).to_be_enabled()
+                    anonymous = context.request.get(
+                        f"{origin}/api/session"
+                    ).json()
+                    self.assertIsNone(anonymous["agent"])
+                    self.assertNotEqual(
+                        anonymous["csrfToken"], first_session["csrfToken"]
+                    )
+                    self.assertEqual(
+                        context.request.patch(
+                            f"{origin}/api/tickets/1/status",
+                            data={"status": "closed"},
+                            headers={"X-CSRF-Token": anonymous["csrfToken"]},
+                        ).status,
+                        401,
+                    )
+                    self.assertEqual(
+                        context.request.get(
+                            f"{origin}/api/tickets",
+                            headers={"Cookie": f"medidesk.sid={first_cookie}"},
+                        ).status,
+                        401,
+                    )
+                    login()
+                    new_session = context.request.get(
+                        f"{origin}/api/session"
+                    ).json()
+                    self.assertNotEqual(
+                        new_session["csrfToken"], first_session["csrfToken"]
+                    )
+                    self.assertNotEqual(
+                        context.cookies(origin)[0]["value"], first_cookie
+                    )
+                    self.assertEqual(new_session["lab"]["variant"], "AFTER")
+                    self.assertEqual(
+                        context.request.patch(
+                            f"{origin}/api/tickets/1/status",
+                            data={"status": "closed"},
+                            headers={
+                                "X-CSRF-Token": first_session["csrfToken"]
+                            },
+                        ).status,
+                        403,
+                    )
+                    retained_page.locator("#status").select_option("closed")
+                    with retained_page.expect_response(
+                        lambda response: response.request.method == "PATCH"
+                    ) as resumed:
+                        retained_page.get_by_role(
+                            "button", name="Zapisz status"
+                        ).click()
+                    self.assertEqual(resumed.value.status, 200)
+                    self.assertEqual(
+                        resumed.value.request.header_value("X-CSRF-Token"),
+                        new_session["csrfToken"],
+                    )
+                    retained_page.locator("#status").select_option("progress")
+                    with retained_page.expect_response(
+                        lambda response: response.request.method == "PATCH"
+                    ) as reset_status:
+                        retained_page.get_by_role(
+                            "button", name="Zapisz status"
+                        ).click()
+                    self.assertEqual(reset_status.value.status, 200)
+                    retained_page.close()
                     cookie = context.cookies(origin)[0]
                     self.assertEqual(cookie["secure"], use_https)
                     self.assertTrue(cookie["httpOnly"])

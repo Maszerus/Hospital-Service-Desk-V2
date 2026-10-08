@@ -1,7 +1,9 @@
-const { tlsOptions } = require("../config/server");
 const people = require("../services/peopleService");
 const tickets = require("../services/ticketService");
-const { getCsrfToken } = require("../middleware/security");
+const {
+  getCsrfToken,
+  sessionCookieOptions,
+} = require("../middleware/security");
 const {
   getLabState,
   selectLabVariant,
@@ -48,11 +50,7 @@ function login(request, response, next) {
 function logout(request, response, next) {
   request.session.destroy((error) => {
     if (error) return next(error);
-    response.clearCookie("medidesk.sid", {
-      httpOnly: true,
-      sameSite: "strict",
-      secure: Boolean(tlsOptions),
-    });
+    response.clearCookie("medidesk.sid", sessionCookieOptions);
     response.json({ message: "Wylogowano." });
   });
 }

@@ -913,9 +913,9 @@ npm test
 
 `tests/server.test.js` uruchamia własny serwer na wolnym porcie 127.0.0.1
 i oddzielną bazę tymczasową. Nie zmienia danych prezentacji.
-Oczekiwane podsumowanie: **tests 8, pass 8, fail 0**.
-Dwa testy główne obejmują backend i migrację; sześć podtestów obejmuje
-logowanie czterech agentów oraz usuwanie w BEFORE/AFTER.
+Oczekiwane podsumowanie: **tests 9, pass 9, fail 0**.
+Dwa testy główne obejmują backend i migrację; siedem podtestów obejmuje
+logowanie czterech agentów, cykl sesji/CSRF oraz usuwanie w BEFORE/AFTER.
 Sprawdzane są również sesje, hashe, reset, walidacja i przypisanie,
 XSS według odpowiedzi serwera, CSRF bez/błędny/poprawny token,
 GET bez zmian, zwykły start i odmowy nieprawidłowego HOST.
@@ -1005,6 +1005,68 @@ testu, a instrukcje ręczne pozostają do wykonania przez prezentera.
 Testy używały baz i certyfikatów tymczasowych poza repozytorium.
 Frontend `public/`, lokalny serwer strony CSRF i pliki testów nie
 zostały zmienione; API zachowało metody, ścieżki, komunikaty i statusy.
+
+### Cykl życia sesji i tokenu CSRF
+
+Token to 32 losowe bajty zapisane jako 64 znaki szesnastkowe w
+`request.session.csrfToken`. `GET /api/session` tworzy go tylko wtedy,
+gdy sesja jeszcze go nie ma; kolejne GET i odświeżenia strony zachowują
+ten sam token. Poprawne logowanie regeneruje identyfikator sesji,
+tworzy nowy token i zwraca go w odpowiedzi. Wylogowanie niszczy sesję
+i wygasza cookie `medidesk.sid` z tym samym Path i flagami, których
+używała sesja. Nowa sesja anonimowa po wylogowaniu ma nowy token;
+ponowne logowanie ponownie zmienia identyfikator i token.
+
+Przed poprawką odtworzono konkretny problem klienta: karta szczegółów
+otwarta przed wylogowaniem wysyłała stary token po ponownym logowaniu
+w innej karcie i otrzymywała 403. Serwer już regenerował sesję i token.
+Frontend teraz pobiera bieżący token przez `GET /api/session` przed
+każdą operacją zmieniającą dane. Ten dodatkowy odczyt nie rotuje tokenu.
+Żądania API mają `cache: "no-store"`, a odpowiedzi serwera
+`Cache-Control: no-store`. Token jest tylko w pamięci bieżącej strony,
+bez localStorage/sessionStorage; jest czyszczony po wylogowaniu i 401.
+Strona przywrócona z pamięci historii przeglądarki jest przeładowywana,
+aby odczytać aktualną sesję zamiast używać starego stanu.
+
+Automatyczny podtest backendu sprawdza stabilność tokenu przy kolejnych
+GET i odczytach strony, różne tokeny niezależnych sesji, regenerację
+przy ponownym logowaniu, wyczyszczenie cookie i unieważnienie starej
+sesji. W AFTER stary token daje 403 bez zmiany danych, nowy działa (200).
+Anonimowa sesja z własnym poprawnym tokenem nie może zmienić statusu
+(401), a odtworzone stare cookie również nie daje dostępu.
+Test przeglądarkowy na HTTP i HTTPS sprawdza odświeżenie strony,
+wylogowanie, ponowne logowanie i zapis z wcześniej otwartej karty,
+w tym faktyczny token wysłany w nagłówku PATCH. Nie zastępuje to
+osobnej ręcznej prezentacji w DevTools.
+
+Po poprawce uruchomiono `npm test`: 9/9, 0 błędów, oraz
+`python tests/browser.test.py`: 2/2 (HTTP i HTTPS), OK. Przeszła również
+istniejąca regresja XSS/CSRF i usuwania w BEFORE/AFTER. Kontrole
+formatowania zakończyły się powodzeniem. Poniższych kroków ręcznych
+nie oznaczono jako wykonanych.
+
+Ręczne powtórzenie (do wykonania przez prezentera):
+
+1. Uruchom B i zaloguj `p.rozmanowski@jakotako.com`. Otwórz MD-001
+   w drugiej karcie i przygotuj DevTools według D w obu kartach.
+2. Na pulpicie odśwież stronę dwa razy. Porównaj pole `csrfToken`
+   w kolejnych odpowiedziach `GET /api/session`: musi być identyczne.
+3. Na pulpicie kliknij „Wyloguj się”. W POST `/api/logout` sprawdź 200
+   i wygaszone Set-Cookie. Strona logowania pobierze nową anonimową
+   sesję, więc nowe cookie może od razu pojawić się w Application.
+4. Zaloguj ponownie. POST `/api/login` musi zwrócić nowy token
+   i nowe cookie; porównuj odpowiedzi, a nie zapisany nagłówek Postmana.
+5. W starej karcie szczegółów, bez jej odświeżania, wybierz „Zamknięte”
+   i „Zapisz status”. Oczekuj GET bieżącej sesji, następnie PATCH 200
+   z nowym tokenem. Odśwież stronę i potwierdź zapis w SQLite przez API.
+6. Przywróć „W trakcie” formularzem. Aby sprawdzić odmowę starego
+   tokenu, w Postmanie użyj aktualnego cookie zalogowanej sesji,
+   `Content-Type: application/json`, ale starego `X-CSRF-Token`.
+   PATCH `/api/tickets/1/status` z `{"status":"closed"}` w AFTER ma
+   zwrócić 403. Z nowym tokenem daje 200. Przywróć `progress`.
+7. Zbierz request/response odświeżeń, logowania, wylogowania i odmowy;
+   zakryj wartości cookie i tokenów w dowodach. Pełna regresja:
+   `npm test` oraz `python tests/browser.test.py` według poleceń wyżej.
 
 ## Zestawienie API i zasad
 

@@ -345,6 +345,101 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
   await login();
   const labSession = (await request("/api/session")).data;
   assert.equal(labSession.lab.variant, "AFTER");
+  await context.test("Cykl sesji i tokenu CSRF w LAB: AFTER", async () => {
+    const previousToken = token;
+    const previousCookie = cookie;
+    assert.match(previousToken, /^[a-f0-9]{64}$/);
+    for (let refresh = 0; refresh < 3; refresh += 1) {
+      const session = await request("/api/session");
+      assert.equal(session.data.csrfToken, previousToken);
+      assert.match(session.headers.get("cache-control"), /no-store/);
+      const page = await fetch(`${origin}/dashboard.html`, {
+        headers: { Cookie: cookie },
+      });
+      assert.equal(page.status, 200);
+      assert.match(page.headers.get("cache-control"), /no-store/);
+      assert.equal((await request("/api/tickets")).status, 200);
+    }
+    const independent = await request("/api/session", "GET", undefined, {
+      Cookie: "",
+    });
+    assert.match(independent.data.csrfToken, /^[a-f0-9]{64}$/);
+    assert.notEqual(independent.data.csrfToken, previousToken);
+    assert.notEqual(cookie, previousCookie);
+    cookie = previousCookie;
+    const logout = await request("/api/logout", "POST", {});
+    assert.equal(logout.status, 200);
+    const clearedCookie = logout.headers.get("set-cookie");
+    assert.match(clearedCookie, /^medidesk\.sid=;/);
+    assert.match(clearedCookie, /Path=\//);
+    assert.match(clearedCookie, /Expires=Thu, 01 Jan 1970/);
+    assert.match(clearedCookie, /HttpOnly/);
+    assert.match(clearedCookie, /SameSite=Strict/);
+    assert.equal((await request("/api/tickets")).status, 401);
+    assert.equal(
+      (
+        await request("/api/tickets", "GET", undefined, {
+          Cookie: previousCookie,
+        })
+      ).status,
+      401,
+    );
+    assert.equal(
+      (
+        await request(
+          "/api/tickets/1/status",
+          "PATCH",
+          { status: "closed" },
+          {
+            Cookie: previousCookie,
+            "X-CSRF-Token": previousToken,
+          },
+        )
+      ).status,
+      403,
+    );
+    const anonymous = await request("/api/session");
+    const anonymousCookie = cookie;
+    token = anonymous.data.csrfToken;
+    assert.equal(anonymous.data.agent, null);
+    assert.notEqual(token, previousToken);
+    assert.notEqual(cookie, previousCookie);
+    assert.equal(
+      (await request("/api/tickets/1/status", "PATCH", { status: "closed" }))
+        .status,
+      401,
+    );
+    await login();
+    assert.notEqual(token, previousToken);
+    assert.notEqual(token, anonymous.data.csrfToken);
+    assert.notEqual(cookie, previousCookie);
+    assert.notEqual(cookie, anonymousCookie);
+    assert.equal((await request("/api/session")).data.csrfToken, token);
+    for (const oldToken of [previousToken, anonymous.data.csrfToken]) {
+      assert.equal(
+        (
+          await request(
+            "/api/tickets/1/status",
+            "PATCH",
+            { status: "closed" },
+            {
+              "X-CSRF-Token": oldToken,
+            },
+          )
+        ).status,
+        403,
+      );
+      assert.equal((await request("/api/tickets/1")).data.status, "progress");
+    }
+    assert.equal(
+      (await request("/api/tickets/1/status", "PATCH", { status: "closed" }))
+        .status,
+      200,
+    );
+    assert.equal((await request("/api/tickets/1")).data.status, "closed");
+    await request("/api/tickets/1/status", "PATCH", { status: "progress" });
+    assert.equal((await request("/api/session")).data.csrfToken, token);
+  });
   const labId = labSession.lab.ticketId;
   assert.equal(
     (await request("/api/session?variant=BEFORE")).data.lab.variant,
