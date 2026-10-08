@@ -32,13 +32,13 @@ initializeLab();
 const app = express();
 app.disable("x-powered-by");
 app.use(requireLocalHost);
+app.use(sessionMiddleware);
+app.use(setSecurityHeaders);
 app.use(express.json({ limit: "16kb" }));
 app.use(
   "/api/tickets/:id/status",
   express.urlencoded({ extended: false, limit: "1kb" }),
 );
-app.use(sessionMiddleware);
-app.use(setSecurityHeaders);
 app.use("/api", protectApi, apiRoutes, apiNotFound);
 app.get("/", (request, response) => response.redirect("/login.html"));
 app.use(express.static(path.join(__dirname, "public")));

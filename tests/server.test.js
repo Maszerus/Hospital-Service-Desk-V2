@@ -138,6 +138,52 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
     401,
   );
   await login();
+  await context.test(
+    "Format API, błędy i nagłówki bezpieczeństwa",
+    async () => {
+      const originalTickets = (await request("/api/tickets")).data;
+      const cases = [
+        { body: "{", type: "application/json", status: 400 },
+        { body: "null", type: "application/json", status: 400 },
+        { body: "[]", type: "application/json", status: 400 },
+        { body: "{}", type: "text/plain", status: 415 },
+        {
+          body: JSON.stringify({ description: "x".repeat(17000) }),
+          type: "application/json",
+          status: 413,
+        },
+      ];
+      for (const example of cases) {
+        const result = await fetch(`${origin}/api/tickets`, {
+          method: "POST",
+          headers: {
+            Cookie: cookie,
+            "X-CSRF-Token": token,
+            "Content-Type": example.type,
+          },
+          body: example.body,
+        });
+        assert.equal(result.status, example.status);
+        assert.match(result.headers.get("content-type"), /application\/json/);
+        assert.match(result.headers.get("cache-control"), /no-store/);
+        assert.equal(result.headers.get("x-content-type-options"), "nosniff");
+        assert.match(
+          result.headers.get("content-security-policy"),
+          /object-src 'none'/,
+        );
+        const data = await result.json();
+        assert.deepEqual(Object.keys(data), ["message"]);
+        assert.equal(typeof data.message, "string");
+        assert.ok(!data.message.includes("SyntaxError"));
+      }
+      assert.equal((await request("/api/not-found")).status, 404);
+      assert.equal(
+        (await request("/api/employees?search=" + "a".repeat(101))).status,
+        400,
+      );
+      assert.deepEqual((await request("/api/tickets")).data, originalTickets);
+    },
+  );
   const agents = (await request("/api/agents")).data;
   assert.equal(agents.length, 4);
   assert.deepEqual(

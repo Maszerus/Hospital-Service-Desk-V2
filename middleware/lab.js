@@ -51,6 +51,7 @@ function setSecurityHeaders(request, response, next) {
       "default-src 'self'",
       `script-src 'self'${controlledHandler}`,
       "style-src 'self'",
+      "object-src 'none'",
       "frame-ancestors 'none'",
       "base-uri 'none'",
       "form-action 'self'",

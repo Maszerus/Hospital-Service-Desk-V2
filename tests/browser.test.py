@@ -138,10 +138,30 @@ class BrowserTests(unittest.TestCase):
                         )
 
                     def variant(name):
-                        with page.expect_navigation():
+                        with page.expect_navigation() as navigation:
                             page.get_by_role(
                                 "button", name=f"LAB: {name}"
                             ).click()
+                        headers = navigation.value.all_headers()
+                        policy = headers["content-security-policy"]
+                        for directive in [
+                            "default-src 'self'",
+                            "script-src 'self'",
+                            "object-src 'none'",
+                            "base-uri 'none'",
+                            "frame-ancestors 'none'",
+                            "form-action 'self'",
+                        ]:
+                            self.assertIn(directive, policy)
+                        self.assertNotIn("'unsafe-inline'", policy)
+                        self.assertNotIn("'unsafe-eval'", policy)
+                        self.assertEqual(
+                            "'unsafe-hashes'" in policy,
+                            name == "BEFORE"
+                            and urlparse(page.url).path
+                            == "/ticket-details.html",
+                        )
+                        self.assertEqual(headers["cache-control"], "no-store")
                         expect(
                             page.locator(f'[data-lab-variant="{name}"]')
                         ).to_have_attribute("aria-pressed", "true")

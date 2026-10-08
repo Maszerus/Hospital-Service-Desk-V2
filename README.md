@@ -68,8 +68,9 @@ Przepływ zwykłego żądania to **middleware → route → controller → servi
 → repository → SQLite**, a odpowiedź wraca przez kontroler.
 Nie ma fabryk, kontenera zależności ani nowych bibliotek.
 
-Kolejność middleware zachowuje kontrolę Host, parsowanie body,
-sesję, CSP i kontrolę CSRF przed routerem. Wyjątek CSRF w BEFORE nadal
+Kolejność middleware to Host, sesja, CSP i zakaz cache, parsowanie body
+oraz CSRF przed routerem. Także błędy JSON otrzymują CSP i no-store.
+Wyjątek CSRF w BEFORE nadal
 dotyczy wyłącznie POST/PATCH `/api/tickets/:id/status`. Usuwanie w obu
 wariantach przechodzi pełną ochronę CSRF; serwis sprawdza status,
 a SQL dodatkowo zawiera `WHERE id = ? AND status = 'closed'`.
@@ -476,6 +477,7 @@ działanie nie dowodzi ochrony CSRF. Odmowy ochrony sprawdza test 4.
 2. W Network wybierz request **dokumentu** `ticket-details.html?id=...`,
    nie requestu API. W Response Headers odczytaj Content-Security-Policy.
 3. CSP zawiera `default-src 'self'`, `style-src 'self'`,
+   `object-src 'none'`,
    `frame-ancestors 'none'`, `base-uri 'none'`, `form-action 'self'`.
    `script-src` zawiera `'self'`, `'unsafe-hashes'` i jeden
    `'sha256-...'` będący skrótem dokładnego handlera z testu 1.
@@ -913,9 +915,10 @@ npm test
 
 `tests/server.test.js` uruchamia własny serwer na wolnym porcie 127.0.0.1
 i oddzielną bazę tymczasową. Nie zmienia danych prezentacji.
-Oczekiwane podsumowanie: **tests 9, pass 9, fail 0**.
-Dwa testy główne obejmują backend i migrację; siedem podtestów obejmuje
-logowanie czterech agentów, cykl sesji/CSRF oraz usuwanie w BEFORE/AFTER.
+Oczekiwane podsumowanie: **tests 10, pass 10, fail 0**.
+Dwa testy główne obejmują backend i migrację; osiem podtestów obejmuje
+logowanie czterech agentów, cykl sesji/CSRF, usuwanie w BEFORE/AFTER
+oraz format API, błędy i nagłówki bezpieczeństwa.
 Sprawdzane są również sesje, hashe, reset, walidacja i przypisanie,
 XSS według odpowiedzi serwera, CSRF bez/błędny/poprawny token,
 GET bez zmian, zwykły start i odmowy nieprawidłowego HOST.
@@ -1070,19 +1073,97 @@ Ręczne powtórzenie (do wykonania przez prezentera):
 
 ## Zestawienie API i zasad
 
-| Metoda       | Endpoint                      | Dane / działanie                                  |
-| ------------ | ----------------------------- | ------------------------------------------------- |
-| GET          | /api/session                  | agent, csrfToken, lab                             |
-| POST         | /api/login                    | email, password; nowa sesja i token               |
-| POST         | /api/logout                   | JSON {}; zakończenie sesji                        |
-| POST         | /api/lab/mode                 | variant: BEFORE albo AFTER                        |
-| GET          | /api/employees?search=Testowy | fikcyjni zgłaszający                              |
-| GET          | /api/agents                   | czterej agenci, bez hashy                         |
-| GET          | /api/tickets                  | lista                                             |
-| GET          | /api/tickets/:id              | szczegóły                                         |
-| POST         | /api/tickets                  | title, description, priority, reporterId, agentId |
-| PATCH / POST | /api/tickets/:id/status       | status                                            |
-| DELETE       | /api/tickets/:id              | JSON {}; tylko closed                             |
+Adres bazowy: `http://127.0.0.1:3000`; dla testu 6.3:
+`https://127.0.0.1:3000`. Odpowiedzi API są JSON.
+Parametr :id musi być dodatnią bezpieczną liczbą całkowitą.
+W tabeli A, E, T i D oznaczają przykłady opisane poniżej.
+**S** oznacza wspólne błędy zapisu: 400 (body nie jest obiektem),
+403 (token/Origin), 415 (Content-Type). Parser zwraca również 400 dla
+niepoprawnego JSON i 413 powyżej 16 KB JSON lub 1 KB formularza.
+Każda trasa może dać 403 przy niepoprawnym Host i 500 przy błędzie
+wewnętrznym. Błędy mają strukturę `{"message":"..."}`; dla 500:
+`{"message":"Błąd serwera."}`, bez SQL i stosu błędu.
+CSRF jest sprawdzany przed logowaniem: anonimowy POST bez tokenu może
+dać 403 zamiast 401; z własnym poprawnym tokenem daje 401.
+
+| Metoda i ścieżka                | Logowanie | Body / query                                                                      | CSRF                           | Statusy i przykład odpowiedzi                                                                                                                               |
+| ------------------------------- | --------- | --------------------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET `/api/session`              | Nie       | Bez body                                                                          | Nie                            | 200: `{"agent":null,"csrfToken":"<TOKEN>","lab":{"enabled":false,"variant":"AFTER","ticketId":null}}`; po logowaniu agent A, w LAB ticketId nadany wpisowi. |
+| POST `/api/login`               | Nie       | JSON `{"email":"p.rozmanowski@jakotako.com","password":"<HASŁO_Z_TERMINALA>"}`    | Tak, z anonimowej sesji        | 200: agent A, csrfToken i message „Zalogowano do demonstracji.”; 400 walidacja, 401 złe konto/hasło, S.                                                     |
+| POST `/api/logout`              | Tak       | JSON `{}`                                                                         | Tak                            | 200: `{"message":"Wylogowano."}`, wygaszone cookie; 401, S.                                                                                                 |
+| POST `/api/lab/mode`            | Tak       | JSON `{"variant":"BEFORE"}` lub AFTER                                             | Tak                            | 200: `{"variant":"BEFORE"}` lub AFTER; 400 wariant, 403 LAB wyłączone, 401, S.                                                                              |
+| GET `/api/employees`            | Tak       | Bez body; `?search=Testowy`, opcjonalny tekst do 100 znaków                       | Nie                            | 200: `[E]`, bez dopasowań `[]`; 400 query, 401.                                                                                                             |
+| GET `/api/agents`               | Tak       | Bez body                                                                          | Nie                            | 200: tablica czterech A bez hashy; 401.                                                                                                                     |
+| GET `/api/tickets`              | Tak       | Bez body                                                                          | Nie                            | 200: tablica T, id malejąco; 401.                                                                                                                           |
+| GET `/api/tickets/:id`          | Tak       | Bez body                                                                          | Nie                            | 200: D; 400 id, 404 brak rekordu, 401.                                                                                                                      |
+| POST `/api/tickets`             | Tak       | JSON title, description, priority, reporterId, opcjonalny agentId; przykład niżej | Tak                            | 201: T z nadanym id/czasem i statusem new; 400 walidacja, 401, S.                                                                                           |
+| PATCH `/api/tickets/:id/status` | Tak       | JSON `{"status":"closed"}`; w LAB także formularz status=closed                   | AFTER/zwykły: tak; BEFORE: nie | 200: D ze zmienionym statusem; 400 id/status, 404 brak, 401, S z wyjątkiem BEFORE.                                                                          |
+| POST `/api/tickets/:id/status`  | Tak       | Jak PATCH; używa go strona CSRF                                                   | Jak PATCH                      | Takie same statusy i odpowiedź jak PATCH.                                                                                                                   |
+| DELETE `/api/tickets/:id`       | Tak       | JSON `{}`                                                                         | Tak w obu wariantach           | 200: `{"message":"Usunięto zamknięte zgłoszenie."}`; 400 id, 404 brak, 409 otwarte, 401, S.                                                                 |
+
+A — przykład agenta po resecie:
+
+```json
+{
+  "id": 1,
+  "firstName": "Przemysław",
+  "lastName": "Rozmanowski",
+  "email": "p.rozmanowski@jakotako.com"
+}
+```
+
+E — fikcyjny zgłaszający wyszukany po Testowy:
+
+```json
+{
+  "id": 2,
+  "firstName": "Bartosz",
+  "lastName": "Testowy",
+  "employeeNumber": "DEMO-002"
+}
+```
+
+T — kompletny obiekt zgłoszenia, przykład MD-001 po resecie:
+
+```json
+{
+  "id": 1,
+  "title": "Drukarka nie drukuje",
+  "description": "Drukarka w pokoju Demo A nie drukuje strony testowej.",
+  "priority": "high",
+  "status": "progress",
+  "reporterId": 1,
+  "createdAt": "2026-10-08T09:00:00.000Z",
+  "reporterName": "Alicja Przykładowa",
+  "employeeNumber": "DEMO-001",
+  "reporterEmail": "demo01@example.invalid",
+  "agentId": null,
+  "agentName": null
+}
+```
+
+D — wszystkie pola T oraz `"descriptionRendering":"text"`.
+Po zmianie na closed status w D to `closed`. Jedyny wyjątek renderowania:
+stały wpis laboratoryjny w BEFORE ma `descriptionRendering: "html"`.
+POST tworzenia zwraca T bez tego pola; modal zawsze używa tekstu.
+
+Body tworzenia z fikcyjnym zgłaszającym i agentem Daniel Pejs:
+
+```json
+{
+  "title": "Fikcyjna awaria stanowiska Demo",
+  "description": "Przykład demonstracyjny bez danych rzeczywistych.",
+  "priority": "medium",
+  "reporterId": 2,
+  "agentId": 3
+}
+```
+
+Odpowiedź 201 ma strukturę T: title/description/priority jak powyżej,
+status new, reporterId 2, reporterName Bartosz Testowy,
+employeeNumber DEMO-002, reporterEmail demo02@example.invalid,
+agentId 3 i agentName Daniel Pejs. Id i createdAt odczytaj z odpowiedzi;
+nie zakładaj stałego numeru nowego rekordu.
 
 Poza sesją i logowaniem API wymaga zalogowania.
 Operacje zmieniające dane wymagają JSON, tokenu `X-CSRF-Token`
@@ -1109,3 +1190,212 @@ fikcyjnych osób; nie używaj danych pacjentów ani innych prawdziwych osób.
 `.git/info/exclude`; `.gitignore` nie jest zmieniany.
 Przy nowym klonowaniu sprawdź lokalne wykluczenia przed dodawaniem plików.
 Nie dodawaj do commita baz, certyfikatów, kluczy, haseł ani AGENTS.md.
+
+## Skrypty npm i pozostałe trasy HTTP
+
+| Polecenie          | Działanie                                            |
+| ------------------ | ---------------------------------------------------- |
+| `npm ci`           | Instalacja wersji zależności z lockfile.             |
+| `npm start`        | Start aplikacji; bez LAB_MODE=1 zabezpieczony.       |
+| `npm run dev`      | `node --watch server.js`, restart po zmianie kodu.   |
+| `npm run lab:csrf` | Osobny lokalny serwer testu CSRF, wymaga LAB_MODE=1. |
+| `npm run db:init`  | Inicjalizacja, migracja i uzupełnienie danych.       |
+| `npm run db:reset` | Reset wskazanej bazy; zatrzymaj wcześniej serwer.    |
+| `npm test`         | Regresja backendu na oddzielnej bazie.               |
+| `npm run format`   | Formatowanie projektu przez Prettier.                |
+
+W pracy lokalnej wykonaj A, ustawienia zwykłego startu 10.1 i użyj
+`npm run dev` zamiast npm start. Każdy restart unieważnia sesje
+i domyślnie zmienia hasło. Do prezentacji używaj npm start.
+Node.js musi spełniać `>=24 <25` z package.json.
+
+GET `/` aplikacji daje 302 do `/login.html`. Strony `/login.html`,
+`/dashboard.html`, `/tickets.html`, `/ticket-details.html?id=<ID>`,
+`/new-ticket.html` i zasoby JS, CSS oraz `/partials/ticket-details.html`
+są serwowane z public/. Sam HTML nie wymaga sesji; dane API jej wymagają.
+Nieznane API GET daje 404 JSON „Nie znaleziono endpointu.”, nieznana
+strona 404 tekst „Nie znaleziono strony.”. GET statusu nie ma trasy zapisu.
+
+Na http://127.0.0.1:3001 serwer lab/csrf-server.js udostępnia GET `/`
+(formularz), `/config` (JSON `{"targetOrigin":"http://127.0.0.1:3000"}`),
+`/csrf.js` i `/styles.css`. Te odczyty nie wymagają sesji ani tokenów.
+Sam serwer 3001 nie zapisuje danych: formularz wysyła POST do aplikacji.
+
+## Postman — logowanie i korzystanie z API
+
+1. Wykonaj A i B (LAB) albo 10.1 (zwykły start). W Postman Desktop
+   lub przez Desktop Agent wybierz No Auth, włącz magazyn cookies
+   i usuń stare cookies 127.0.0.1 z poprzedniego startu. Nie ustawiaj
+   własnego nagłówka Cookie i nie mieszaj 127.0.0.1 z localhost.
+2. GET `http://127.0.0.1:3000/api/session`, bez body: 200, agent null,
+   csrfToken i Set-Cookie medidesk.sid. Postman zapamiętuje cookie.
+   Token wpisz do lokalnej, nieudostępnianej zmiennej `csrfToken`
+   oznaczonej sensitive. Nie eksportuj aktywnej wartości.
+3. POST `http://127.0.0.1:3000/api/login`. Headers:
+   `Content-Type: application/json`, `X-CSRF-Token: {{csrfToken}}`.
+   Body → raw → JSON:
+
+```json
+{
+  "email": "p.rozmanowski@jakotako.com",
+  "password": "<HASŁO_NA_CZAS_TEGO_URUCHOMIENIA_Z_TERMINALA>"
+}
+```
+
+4. Oczekuj 200, agent, csrfToken i message „Zalogowano do demonstracji.”.
+   Logowanie regeneruje sesję: Postman zastępuje cookie, a Ty zastąp
+   zmienną csrfToken **nowym** tokenem z odpowiedzi. Placeholder nie jest
+   hasłem; pobierz aktualne hasło z terminala.
+5. GET `/api/session` potwierdza agenta i ten sam token. GET `/api/agents`
+   daje cztery konta, GET `/api/employees?search=Testowy` zgłaszającego,
+   GET `/api/tickets` rekordy. Dopisz te ścieżki do adresu bazowego.
+   Nie potrzeba Authorization: Bearer. Cookie idzie automatycznie.
+6. W LAB wyślij POST `/api/lab/mode`, JSON `{"variant":"AFTER"}`,
+   z nagłówkami kroku 3. GET sesji potwierdza AFTER. Zwykły start
+   odrzuca przełącznik 403 nawet z poprawnym tokenem.
+7. PATCH `/api/tickets/1/status`, JSON `{"status":"closed"}` i token: 200. GET szczegółów potwierdza closed. Usuń nagłówek X-CSRF-Token:
+   ta sama próba w AFTER daje 403. Ustaw invalid-lab-token: 403.
+   GET potwierdza brak kolejnej zmiany. Przywróć progress poprawnym
+   tokenem i PATCH `{"status":"progress"}` (200).
+8. POST `/api/tickets` z body tworzenia z tabeli API i tokenem: 201.
+   Zapamiętaj id. GET `/api/tickets/<ID>` potwierdza Daniel Pejs.
+   DELETE tego id, JSON `{}`, token: 409 dla new/progress.
+   PATCH na closed, potem DELETE z tokenem: 200; GET: 404. To reset próby.
+9. POST `/api/logout`, JSON `{}` i token: 200, cookie wygaszone.
+   GET `/api/tickets`: 401. Powtórz kroki 2–4; nowy token różni się
+   od starego. Stary token w nowej zalogowanej sesji AFTER daje 403,
+   nowy działa. Zwykłe GET nie rotują tokenu.
+10. Powtórz kroki 2–5 i 9 dla każdego z czterech kont z tabeli,
+    używając hasła bieżącego startu. Odpowiedź musi wskazać wybranego
+    agenta. Fikcyjny zgłaszający demo01@example.invalid nie loguje się (401).
+11. Zbierz metody, ścieżki, body i statusy po zakryciu haseł, cookie
+    i tokenów. Po próbie wyloguj się i usuń lokalne sekrety Postmana.
+    Pełny reset: zatrzymaj serwer, A, ponowny właściwy start.
+
+Postman zwykle nie wysyła Origin. Jeśli go ustawiasz, musi odpowiadać
+aplikacji, np. http://127.0.0.1:3000. Nagłówek Host ustawia klient.
+Dla HTTPS wykonaj 6.3 i używaj https://127.0.0.1:3000; zaufaj lokalnemu
+certyfikatowi lub ogranicz wyjątek jego weryfikacji do tej próby,
+a następnie przywróć weryfikację. Secure sprawdzaj tylko na HTTPS.
+
+Postman sprawdza API i sesję, nie wykonanie XSS w dokumencie ani
+zachowanie cookies przy formularzu innego originu. To wymagania testów
+1–6 w przeglądarce. Sesja Postmana jest osobna od Chrome:
+przełączenie BEFORE w Postmanie nie przełącza sesji przeglądarki.
+
+## Karta P7, standardy i ryzyko
+
+Audyt uwzględnia lokalny Karta_projektu_BAI_Grupa_1.pdf: P7 „Utwardzanie
+przeglądarki 2026”, jedną kontrolowaną ścieżkę XSS, formularz zmiany danych
+i sesję. Nie przepisujemy numerów albumów ani dodatkowych danych z karty.
+Zasoby to sesja agenta i integralność fikcyjnych zgłoszeń. Powierzchnia
+ataku obejmuje opis, POST/PATCH statusu i cookie. Strona 3001 jest innym
+originem, ale przy tym samym schemacie i hoście pozostaje same-site;
+dlatego SameSite=Strict nie zastępuje tokenu w tej demonstracji.
+
+### Mapowanie wybranych kontroli
+
+| Kontrola / ryzyko | Wymagania lub ryzyka                                                                                                             | Weryfikacja MediDesk                                                                                                                                                                                                    |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| XSS               | [OWASP Top 10:2025 A05 Injection](https://top10.owasp.org/2025/A05_2025-Injection/), CWE-79; ASVS 5.0.0 3.2.2                    | [WSTG 4.2 WSTG-INPV-02](https://wstg.owasp.org/v4.2/4-Web_Application_Security_Testing/07-Input_Validation_Testing/02-Testing_for_Stored_Cross_Site_Scripting/), testy 1–2: alert BEFORE, tekst AFTER.                  |
+| CSRF              | [OWASP Top 10:2025 A01 Broken Access Control](https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/), CWE-352; ASVS 3.5.1 | [WSTG 4.2 WSTG-SESS-05](https://wstg.owasp.org/v4.2/4-Web_Application_Security_Testing/06-Session_Management_Testing/05-Testing_for_Cross_Site_Request_Forgery/), testy 3–5: 200 BEFORE, 403 AFTER, poprawny PATCH 200. |
+| CSP / cookies     | ASVS 3.4.3, 3.4.6, 3.3.2 i 3.3.4                                                                                                 | [WSTG 4.2 WSTG-SESS-02](https://wstg.owasp.org/v4.2/4-Web_Application_Security_Testing/06-Session_Management_Testing/02-Testing_for_Cookies_Attributes/), test 6: CSP, HttpOnly, SameSite i Secure na HTTPS.            |
+| Metody HTTP       | ASVS 3.5.3                                                                                                                       | Testy 7–8: brak zmian GET i token DELETE także w BEFORE.                                                                                                                                                                |
+
+Numery ASVS pochodzą z
+[wydania 5.0.0, V3](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x12-V3-Web-Frontend-Security.md).
+To mapowanie wybranych kontroli, nie pełna zgodność ASVS.
+CSP zawiera object-src/base-uri/frame-ancestors 'none'; wyjątek hash
+handlera działa tylko dla szczegółów w BEFORE. Nie deklarujemy pełnego
+spełnienia ASVS 3.3.1/3.3.3: cookie medidesk.sid nie ma prefiksu
+__Secure-/__Host-, a wariant HTTP celowo nie ma Secure.
+Nie wdrażamy HSTS dla adresu IP ani raportowania naruszeń CSP.
+
+### Ocena ryzyka i ograniczenia
+
+| Scenariusz        | BEFORE                                                    | AFTER / zwykły start                                                             | Priorytet                                                                                     |
+| ----------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| XSS               | Stały handler wykonuje nieszkodliwy alert w dokumencie.   | Opis jest tekstem, CSP odrzuca handler.                                          | Wysoki w rzeczywistej aplikacji ze względu na kontekst sesji; tu wpływ ograniczony do alertu. |
+| CSRF statusu      | Formularz wymusza zmianę fikcyjnego rekordu.              | Token/Origin odrzucają próbę; prawidłowy zapis działa.                           | Wysoki dla integralności danych; wyjątek nie obejmuje tworzenia/usuwania.                     |
+| Stary token/sesja | Stara karta mogła użyć nieaktualnego tokenu i dostać 403. | Ponowny odczyt sesji, no-store i regeneracja logowania; stare sesje bez dostępu. | Ryzyko błędu obsługi ograniczone testem cyklu.                                                |
+
+Ocena jest jakościowa, bez CVSS. Potwierdza tylko zbadane scenariusze,
+nie pełne bezpieczeństwo. Sesje są w pamięci, nie przeżywają restartu.
+Nie ma MFA, limitowania logowań ani produkcyjnej autoryzacji ról;
+to lokalne laboratorium, bez dodawania tych funkcji w ramach audytu.
+Przegląd bieżących plików śledzonych nie ujawnił jawnych sekretów;
+nie wykonano pełnego skanowania historii Git ani audytu dostawców.
+
+### Evidence i pozostałe warunki P7
+
+Zbierz: alert/DOM BEFORE i AFTER, request/response CSRF trzech tokenów
+i kontrolny GET, CSP, cookies HTTP/HTTPS bez wartości, odmowę HOST,
+utworzenie/przypisanie/modal/DELETE, cykl sesji i logi testów.
+Zapisz datę, wersje Node/Chrome i numer scenariusza. Zakryj hasła,
+Cookie, Set-Cookie i tokeny również w HAR oraz eksportach proxy.
+
+Karta wskazuje DevTools i ZAP/Burp Community. Ręcznej sesji tych narzędzi
+ani Postmana nie wykonano w audycie. Aby zebrać dowody przez Burp:
+
+1. Uruchom B + C. Wyłącz Intercept w Burp Community i otwórz jego
+   wbudowaną przeglądarkę na http://127.0.0.1:3000/login.html.
+2. Ogranicz Target do 127.0.0.1:3000 i 127.0.0.1:3001. Nie skanuj
+   innych hostów. Zaloguj konto z instrukcji i wykonaj testy 1–5.
+3. W HTTP history zbierz POST z originu 3001, obie odmowy AFTER
+   i poprawny PATCH. Potwierdź stan oddzielnym GET. Wyeksportuj dowody
+   dopiero po usunięciu sekretów. Cookies/HTTPS testuj według 6.
+4. Wyloguj się, zamknij przeglądarkę Burp i przywróć MD-001 przez E.
+
+Definition of Done wymaga również raportu 8–12 stron i obrony 10–12 min
+z demonstracją i pytaniami. README nie zastępuje raportu. Raportu,
+obrony i znajomości projektu przez cały zespół nie zweryfikowano.
+Przed prezentacją przygotuj raport, evidence, podział wkładu i próbę demo.
+
+## Końcowy audyt — wyniki z 8 października 2026
+
+Porównano kod i testy z kartą P7, a nie tylko deklaracje README.
+Naprawiono brak jawnego object-src w CSP oraz brak CSP/no-store dla
+błędów parsera JSON: sesja i nagłówki są teraz ustawiane przed parserem.
+Dodano testy błędnych formatów, limitu body i nagłówków, a test Chrome
+sprawdza CSP po przełączeniu wariantu. Dodano brakujący npm run dev.
+Frontend, endpointy, dane inicjalizacyjne i kontrolowane wyjątki BEFORE
+nie zmieniły się. Bazy i certyfikaty testów były poza repozytorium.
+
+| Polecenie / kontrola                                                                                                                                                                       | Wykonany wynik                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `npm test`                                                                                                                                                                                 | 10/10 PASS, 0 błędów.                                                                     |
+| `python tests/browser.test.py`                                                                                                                                                             | 2/2 PASS, HTTP i HTTPS w Chrome, 77,822 s.                                                |
+| `npm run format`                                                                                                                                                                           | Zakończone poprawnie.                                                                     |
+| `npx prettier --check public lab scripts tests config routes controllers services repositories middleware server.js database.js README.md package.json package-lock.json .prettierrc.json` | PASS.                                                                                     |
+| Black, szerokość 80                                                                                                                                                                        | Test Python sformatowany i sprawdzony.                                                    |
+| `npm audit --omit=dev`                                                                                                                                                                     | 0 znanych podatności zależności produkcyjnych według rejestru w dniu audytu.              |
+| `node --watch server.js`                                                                                                                                                                   | Start 200 na tymczasowym porcie 127.0.0.1, LAB wyłączone, AFTER; odpowiada skryptowi dev. |
+| `git diff --check`                                                                                                                                                                         | Bez błędów whitespace.                                                                    |
+
+Środowisko: Node.js 24.21.0, npm 11.19.0. npm audit nie oznacza
+pełnego audytu łańcucha dostaw ani braku wszystkich możliwych podatności.
+Historyczne wyniki 8/8 i 9/9 wyżej dotyczą wcześniejszych kroków.
+
+| Wymaganie / kontrola                        | Wynik      | Zakres potwierdzenia                                                                |
+| ------------------------------------------- | ---------- | ----------------------------------------------------------------------------------- |
+| Proste warstwy i parametryzowane SQL        | PASS       | Przegląd źródeł; brak SQL/reguł biznesowych w routes.                               |
+| Walidacja i odpowiedzi błędów               | PASS       | Dane, typy, referencje, format, limit body, brak zapisu po błędach.                 |
+| Cztery konta / osobni fikcyjni zgłaszający  | PASS       | Logowania, brak hashy w API, migracja i reset.                                      |
+| Tworzenie, agent, szczegóły i klawiatura    | PASS       | API i automatyczny Chrome HTTP/HTTPS.                                               |
+| Usuwanie tylko closed, CSRF obu wariantów   | PASS       | 200/409/403/404 oraz potwierdzenie i odświeżenie interfejsu.                        |
+| XSS BEFORE → AFTER                          | PASS       | Rzeczywisty alert, potem tekst bez wykonania w Chrome.                              |
+| CSRF BEFORE → AFTER                         | PASS       | Inny origin: BEFORE 200; AFTER brak/błędny 403; poprawny formularz 200.             |
+| Token stabilny, nowe logowanie, logout      | PASS       | Backend i Chrome: stare sesje/tokeny odrzucone.                                     |
+| GET nie zmienia danych                      | PASS       | Kontrolne odczyty i porównanie stanu.                                               |
+| CSP i HttpOnly/SameSite/Secure              | PASS       | Automatyczne HTTP/HTTPS; Secure tylko HTTPS.                                        |
+| Zwykły start i ograniczenia LAB             | PASS       | AFTER bez flagi, przełącznik server-side, odmowy niedozwolonych HOST.               |
+| API, instrukcje i mapowanie standardów      | PASS       | Porównanie tras/komunikatów z kodem, Top 10 + ASVS + WSTG.                          |
+| Sekrety bieżących plików śledzonych         | PASS       | Przegląd i ograniczony skan typowych kluczy; brak śledzonych baz/.env/certyfikatów. |
+| Ręczna prezentacja w Postman/DevTools/Burp  | NOT TESTED | Opisane kroki, ale nie wykonana osobna ręczna sesja.                                |
+| Raport 8–12 stron i obrona 10–12 min        | NOT TESTED | W repo jest karta, nie zweryfikowano gotowego raportu ani obrony.                   |
+| Pełny ASVS, historia Git, inne przeglądarki | NOT TESTED | Poza wykonanym zakresem; nie deklarujemy pełnej zgodności/bezpieczeństwa.           |
+
+Nie pozostały wykryte FAIL w zbadanych scenariuszach po poprawkach.
+Przed prezentacją wykonaj ręcznie kroki 1–10 i instrukcję Postmana,
+zbierz zanonimizowane dowody przez DevTools/Burp, przygotuj raport
+i przećwicz demo z całym zespołem. Testy automatyczne tego nie zastępują.
