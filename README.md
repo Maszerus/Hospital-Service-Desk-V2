@@ -1,15 +1,37 @@
 # MediDesk — instrukcja demonstracji
 
-MediDesk to lokalny szpitalny Service Desk: HTML, CSS i JavaScript,
-Express oraz SQLite w Node.js 24.x. Wszystkie zgłoszenia i zgłaszający
-są fikcyjni. Jedyny zatwierdzony wyjątek to cztery konta członków zespołu
-projektowego, używane za ich zgodą. Aplikacja nie wysyła poczty.
+MediDesk to demonstracyjna aplikacja Service Desk działająca w fikcyjnym
+środowisku szpitalnym. Powstała po to, by pokazać, jak aplikacja reaguje na
+wybrane scenariusze XSS i CSRF przed wprowadzeniem zabezpieczeń i po nim.
 
-Instrukcja opisuje backend w `server.js`, `database.js` i katalogach
-warstw poniżej, frontend w `public/` oraz testy w `lab/` i `tests/`.
-Wykonuj testy 1–10 po kolei. Przed niezależnym powtórzeniem testu wykonaj
-jego przygotowanie i reset. Polecenia terminalowe są dla PowerShell
-uruchomionego w głównym katalogu repozytorium.
+Aplikacja korzysta z HTML, CSS i JavaScriptu, a jej backend działa na
+Node.js, Expressie i SQLite. Uruchamia się lokalnie pod adresem
+`127.0.0.1`. Zgłoszenia i dane zgłaszających są demonstracyjne; konta
+agentów wykorzystują imiona i nazwiska członków zespołu projektowego.
+Aplikacja nie wysyła e-maili.
+
+W instrukcji znajdziesz opis warstw backendu, przygotowanie środowiska,
+kroki dziesięciu testów, omówienie API i polecenia do sprawdzenia regresji.
+Polecenia terminalowe są przeznaczone dla PowerShella uruchomionego
+w głównym katalogu repozytorium. Przed powtórzeniem testu wykonaj opisane
+przy nim przygotowanie; bazę resetuj zgodnie z instrukcją danego testu.
+
+## Spis treści
+
+- [Warstwy backendu](#struktura-backendu-i-odpowiedzialność-warstw)
+- [Przygotowanie aplikacji i środowiska testowego](#przygotowanie-wspólne)
+- [Testy demonstracyjne 1–10](#1-xss-before-wykonanie-nieszkodliwego-komunikatu)
+  - [XSS: BEFORE i AFTER](#1-xss-before-wykonanie-nieszkodliwego-komunikatu)
+  - [CSRF: BEFORE i AFTER](#3-csrf-before-zmiana-statusu-bez-tokenu)
+  - [CSP i cookie sesyjne](#6-csp-i-flagi-sesyjnego-cookie-w-tym-httpssecure)
+  - [Zmiany danych przez GET](#7-brak-zmian-danych-przez-get)
+  - [Usuwanie i tworzenie zgłoszeń](#8-usuwanie-zamkniętych-zgłoszeń-i-odmowy)
+  - [Bezpieczny start](#10-zwykły-bezpieczny-start-i-odmowa-innego-adresu)
+- [Automatyczna regresja i wyniki](#automatyczna-regresja-i-wyniki)
+- [Zestawienie API](#zestawienie-api-i-zasad)
+- [Korzystanie z API przez Postman](#postman--logowanie-i-korzystanie-z-api)
+- [Standardy, ryzyko i dowody](#karta-p7-standardy-i-ryzyko)
+- [Wyniki końcowego audytu](#końcowy-audyt--wyniki-z-8-października-2026)
 
 ## Struktura backendu i odpowiedzialność warstw
 
@@ -82,8 +104,10 @@ polecenia startu i resetowania oraz zakres demonstracji nie zmieniły się.
 ### Wymagania i konta
 
 Potrzebne są Node.js 24.x, npm i aktualna przeglądarka z DevTools.
-Test HTTPS dodatkowo wymaga OpenSSL. Nie otwieraj stron przez
-`file://` ani `localhost`; używaj dokładnie `127.0.0.1`.
+Test HTTPS dodatkowo wymaga OpenSSL. Otwieraj aplikację pod adresem
+`127.0.0.1`. Serwer odrzuca żądania kierowane na `localhost`, a pliki
+strony powinny być wczytywane przez aplikację, nie bezpośrednio przez
+`file://`.
 
 | Agent                  | Konto demonstracyjne       |
 | ---------------------- | -------------------------- |
