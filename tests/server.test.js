@@ -24,10 +24,15 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
     PORT: String(port),
     MEDIDESK_DB_PATH: databasePath,
     MEDIDESK_DEMO_PASSWORD: password,
+    LAB_MODE: "0",
+    HOST: "127.0.0.1",
+    MEDIDESK_TLS_CERT: "",
+    MEDIDESK_TLS_KEY: "",
   };
   let server;
   let cookie = "";
   let token = "";
+  delete environment.LAB_MODE;
 
   async function stopServer() {
     if (server && server.exitCode === null && server.signalCode === null) {
@@ -99,12 +104,12 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
     };
   }
 
-  async function login() {
+  async function login(email = "p.rozmanowski@jakotako.com") {
     const session = await request("/api/session");
     token = session.data.csrfToken;
     const oldCookie = cookie;
     const result = await request("/api/login", "POST", {
-      email: "demo01@example.invalid",
+      email,
       password,
     });
     assert.equal(result.status, 200);
@@ -113,6 +118,7 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
     assert.match(result.headers.get("set-cookie"), /HttpOnly/);
     assert.match(result.headers.get("set-cookie"), /SameSite=Strict/);
     token = result.data.csrfToken;
+    return result.data.agent;
   }
 
   await startServer();
@@ -125,13 +131,64 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
   assert.equal(
     (
       await request("/api/login", "POST", {
-        email: "demo01@example.invalid",
+        email: "p.rozmanowski@jakotako.com",
         password: "incorrect-demo-password",
       })
     ).status,
     401,
   );
   await login();
+  const agents = (await request("/api/agents")).data;
+  assert.equal(agents.length, 4);
+  assert.deepEqual(
+    agents.map((agent) => agent.email),
+    [
+      "p.rozmanowski@jakotako.com",
+      "j.malina@jakotako.com",
+      "d.pejs@jakotako.com",
+      "a.szymczyk@jakotako.com",
+    ],
+  );
+  assert.ok(agents.every((agent) => !("passwordHash" in agent)));
+  for (const agent of agents) {
+    await context.test(`Logowanie agenta ${agent.email}`, async () => {
+      const loggedIn = await login(agent.email);
+      assert.equal(loggedIn.id, agent.id);
+      assert.equal(loggedIn.email, agent.email);
+      assert.equal(loggedIn.firstName, agent.firstName);
+      assert.ok(!("passwordHash" in loggedIn));
+      assert.equal((await request("/api/session")).data.agent.id, agent.id);
+      assert.equal(
+        (
+          await request("/api/login", "POST", {
+            email: agent.email,
+            password: "incorrect-demo-password",
+          })
+        ).status,
+        401,
+      );
+    });
+  }
+  assert.equal(
+    (
+      await request("/api/login", "POST", {
+        email: "demo01@example.invalid",
+        password,
+      })
+    ).status,
+    401,
+  );
+  const reporters = (await request("/api/employees")).data;
+  assert.equal(reporters.length, 3);
+  assert.deepEqual(
+    reporters.map((reporter) => reporter.lastName),
+    ["Przykładowa", "Testowy", "Fikcyjna"],
+  );
+  assert.equal((await request("/api/session")).data.lab.enabled, false);
+  assert.equal(
+    (await request("/api/lab/mode", "POST", { variant: "BEFORE" })).status,
+    403,
+  );
   assert.equal((await request("/api/tickets")).data.length, 3);
   for (const query of ["przykladowa", "DEMO-001", "ALICJA"]) {
     const result = await request(`/api/employees?search=${query}`);
@@ -147,6 +204,7 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
     description: "Opis fikcyjnej awarii.",
     priority: "high",
     reporterId: 1,
+    agentId: agents[1].id,
   };
   assert.equal(
     (await request("/api/tickets", "POST", ticketData, { "X-CSRF-Token": "" }))
@@ -170,6 +228,9 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
     { reporterId: 999 },
     { reporterId: "1" },
     { title: ["test"] },
+    { agentId: 999 },
+    { agentId: "1" },
+    { agentId: 0 },
   ]) {
     assert.equal(
       (await request("/api/tickets", "POST", { ...ticketData, ...changes }))
@@ -182,6 +243,8 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
   assert.equal(created.status, 201);
   const id = created.data.id;
   assert.equal(created.data.status, "new");
+  assert.equal(created.data.agentId, agents[1].id);
+  assert.equal(created.data.agentName, "Jaromir Malina");
   assert.equal(
     (await request(`/api/tickets/${id}`)).data.title,
     ticketData.title,
@@ -202,6 +265,20 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
   await stopServer();
   const stored = new DatabaseSync(databasePath);
   assert.equal(
+    stored.prepare("SELECT agent_id FROM tickets WHERE id = ?").get(id)
+      .agent_id,
+    agents[1].id,
+  );
+  const hashes = stored
+    .prepare("SELECT password_hash FROM agents ORDER BY id")
+    .all();
+  assert.equal(new Set(hashes.map((agent) => agent.password_hash)).size, 4);
+  for (const agent of hashes) {
+    assert.match(agent.password_hash, /^[a-f0-9]{32}:[a-f0-9]{128}$/);
+    assert.notEqual(agent.password_hash, password);
+    assert.ok(!agent.password_hash.includes(password));
+  }
+  assert.equal(
     stored.prepare("SELECT status FROM tickets WHERE id = ?").get(id).status,
     "closed",
   );
@@ -210,6 +287,10 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
   assert.equal((await request("/api/tickets")).status, 401);
   await login();
   assert.equal((await request(`/api/tickets/${id}`)).data.status, "closed");
+  assert.equal(
+    (await request(`/api/tickets/${id}`)).data.agentName,
+    "Jaromir Malina",
+  );
   assert.equal((await request("/api/logout", "POST", {})).status, 200);
   assert.equal((await request("/api/tickets")).status, 401);
   await stopServer();
@@ -225,4 +306,288 @@ test("Lokalna sesja, walidacja, CSRF i trwały zapis zgłoszenia", async (contex
     3,
   );
   resetDatabase.close();
+  const initializedAgain = spawnSync(process.execPath, ["scripts/init-db.js"], {
+    cwd: path.join(__dirname, ".."),
+    env: environment,
+    windowsHide: true,
+  });
+  assert.equal(initializedAgain.status, 0);
+  const seeded = new DatabaseSync(databasePath);
+  assert.equal(
+    seeded.prepare("SELECT count(*) AS count FROM agents").get().count,
+    4,
+  );
+  assert.equal(
+    seeded.prepare("SELECT count(*) AS count FROM employees").get().count,
+    3,
+  );
+  assert.equal(
+    seeded.prepare("SELECT count(*) AS count FROM tickets").get().count,
+    3,
+  );
+  seeded.close();
+
+  for (const script of ["server.js", "lab/csrf-server.js"]) {
+    for (const host of ["0.0.0.0", "::1", "localhost"]) {
+      const refused = spawnSync(process.execPath, [script], {
+        cwd: path.join(__dirname, ".."),
+        env: { ...environment, LAB_MODE: "1", HOST: host },
+        windowsHide: true,
+        timeout: 2000,
+      });
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.stderr.toString(), /127\.0\.0\.1/);
+    }
+  }
+
+  environment.LAB_MODE = "1";
+  await startServer();
+  await login();
+  const labSession = (await request("/api/session")).data;
+  assert.equal(labSession.lab.variant, "AFTER");
+  const labId = labSession.lab.ticketId;
+  assert.equal(
+    (await request("/api/session?variant=BEFORE")).data.lab.variant,
+    "AFTER",
+  );
+  assert.equal(
+    (await request(`/api/tickets/${labId}`)).data.descriptionRendering,
+    "text",
+  );
+  assert.equal(
+    (await request("/api/lab/mode", "POST", { variant: "invalid" })).status,
+    400,
+  );
+  assert.equal(
+    (
+      await request(
+        "/api/lab/mode",
+        "POST",
+        { variant: "BEFORE" },
+        { "X-CSRF-Token": "" },
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await request("/api/lab/mode", "POST", { variant: "BEFORE" })).status,
+    200,
+  );
+  const demoTicket = (await request(`/api/tickets/${labId}`)).data;
+  assert.equal(demoTicket.descriptionRendering, "html");
+  assert.match(demoTicket.description, /nieszkodliwy komunikat/);
+  assert.match(
+    (
+      await fetch(`${origin}/ticket-details.html`, {
+        headers: { Cookie: cookie },
+      })
+    ).headers.get("content-security-policy"),
+    /unsafe-hashes/,
+  );
+  assert.equal(
+    (await request("/api/tickets", "POST", ticketData, { "X-CSRF-Token": "" }))
+      .status,
+    403,
+  );
+  const arbitrary = await request("/api/tickets", "POST", {
+    ...ticketData,
+    description: "<b>Fikcyjny tekst</b>",
+  });
+  assert.equal(
+    (await request(`/api/tickets/${arbitrary.data.id}`)).data
+      .descriptionRendering,
+    "text",
+  );
+
+  async function submitCrossOriginStatus(status, invalidToken = false) {
+    return fetch(`${origin}/api/tickets/1/status`, {
+      method: "POST",
+      headers: {
+        Cookie: cookie,
+        Origin: `http://127.0.0.1:${port + 1}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: `status=${status}${invalidToken ? "&csrfToken=invalid-lab-token" : ""}`,
+    });
+  }
+  assert.equal((await submitCrossOriginStatus("closed")).status, 200);
+  assert.equal((await request("/api/tickets/1")).data.status, "closed");
+  assert.equal((await submitCrossOriginStatus("invalid")).status, 400);
+  assert.equal((await request("/api/tickets/1")).data.status, "closed");
+  assert.equal(
+    (await request("/api/tickets/1/status?status=new&variant=AFTER")).status,
+    404,
+  );
+  assert.equal((await request("/api/tickets/1")).data.status, "closed");
+  assert.equal(
+    (await request("/api/session?variant=AFTER")).data.lab.variant,
+    "BEFORE",
+  );
+  await request("/api/tickets/1/status", "PATCH", { status: "progress" });
+  assert.equal((await request("/api/tickets/1")).data.status, "progress");
+  assert.equal((await submitCrossOriginStatus("closed", true)).status, 200);
+  await request("/api/tickets/1/status", "PATCH", { status: "progress" });
+  await request("/api/lab/mode", "POST", { variant: "AFTER" });
+  assert.equal(
+    (await request(`/api/tickets/${labId}`)).data.descriptionRendering,
+    "text",
+  );
+  assert.equal((await submitCrossOriginStatus("new")).status, 403);
+  assert.equal((await request("/api/tickets/1")).data.status, "progress");
+  assert.equal((await submitCrossOriginStatus("new", true)).status, 403);
+  assert.equal((await request("/api/tickets/1")).data.status, "progress");
+  for (const badToken of ["", "invalid-lab-token"]) {
+    assert.equal(
+      (
+        await request(
+          "/api/tickets/1/status",
+          "PATCH",
+          { status: "closed" },
+          { "X-CSRF-Token": badToken },
+        )
+      ).status,
+      403,
+    );
+    assert.equal((await request("/api/tickets/1")).data.status, "progress");
+  }
+  assert.equal(
+    (await request(`/api/tickets/${labId}?variant=BEFORE`)).data
+      .descriptionRendering,
+    "text",
+  );
+  assert.equal(
+    (await request(`/api/tickets/${arbitrary.data.id}`)).data
+      .descriptionRendering,
+    "text",
+  );
+  assert.equal(
+    (await request("/api/tickets/1/status", "PATCH", { status: "new" })).status,
+    200,
+  );
+  assert.equal((await request("/api/tickets/1")).data.status, "new");
+  await request("/api/tickets/1/status", "PATCH", { status: "progress" });
+  assert.equal((await request("/api/tickets/1")).data.status, "progress");
+  assert.doesNotMatch(
+    (
+      await fetch(`${origin}/ticket-details.html`, {
+        headers: { Cookie: cookie },
+      })
+    ).headers.get("content-security-policy"),
+    /unsafe-hashes/,
+  );
+  for (const variant of ["BEFORE", "AFTER"]) {
+    await context.test(
+      `Usuwanie zamkniętych zgłoszeń w ${variant}`,
+      async () => {
+        await request("/api/lab/mode", "POST", { variant });
+        const created = await request("/api/tickets", "POST", ticketData);
+        assert.equal(created.status, 201);
+        const url = `/api/tickets/${created.data.id}`;
+        for (const status of ["new", "progress"]) {
+          await request(`${url}/status`, "PATCH", { status });
+          assert.equal((await request(url, "DELETE", {})).status, 409);
+          assert.equal((await request(url)).data.status, status);
+        }
+        await request(`${url}/status`, "PATCH", { status: "closed" });
+        for (const badToken of ["", "invalid-lab-token"]) {
+          assert.equal(
+            (await request(url, "DELETE", {}, { "X-CSRF-Token": badToken }))
+              .status,
+            403,
+          );
+          assert.equal((await request(url)).data.status, "closed");
+        }
+        assert.equal((await request(`${url}?delete=1`)).status, 200);
+        assert.equal((await request(url)).data.status, "closed");
+        assert.equal(
+          (
+            await request(
+              url,
+              "DELETE",
+              {},
+              { Origin: "http://127.0.0.1:3001" },
+            )
+          ).status,
+          403,
+        );
+        const count = (await request("/api/tickets")).data.length;
+        assert.equal((await request(url, "DELETE", {})).status, 200);
+        assert.equal((await request(url)).status, 404);
+        const remaining = (await request("/api/tickets")).data;
+        assert.equal(remaining.length, count - 1);
+        assert.ok(!remaining.some((ticket) => ticket.id === created.data.id));
+        assert.equal((await request(url, "DELETE", {})).status, 404);
+        assert.equal(
+          (await request("/api/tickets/bad-id", "DELETE", {})).status,
+          400,
+        );
+      },
+    );
+  }
+  await stopServer();
+  delete environment.LAB_MODE;
+  await startServer();
+  await login();
+  assert.equal((await request("/api/session")).data.lab.enabled, false);
+  assert.equal(
+    (await request(`/api/tickets/${labId}?variant=BEFORE`)).data
+      .descriptionRendering,
+    "text",
+  );
+  assert.equal(
+    (await request("/api/lab/mode", "POST", { variant: "BEFORE" })).status,
+    403,
+  );
+  assert.equal((await submitCrossOriginStatus("closed")).status, 403);
+  assert.equal((await request("/api/tickets/1")).data.status, "progress");
+  await stopServer();
+});
+
+test("Migracja starej bazy zachowuje zgłaszającego i zgłoszenie", (context) => {
+  const directory = mkdtempSync(path.join(tmpdir(), "medidesk-migration-"));
+  context.after(() => rmSync(directory, { recursive: true, force: true }));
+  const databasePath = path.join(directory, "legacy.sqlite");
+  const legacy = new DatabaseSync(databasePath);
+  legacy.exec(`
+    CREATE TABLE employees (
+      id INTEGER PRIMARY KEY, first_name TEXT, last_name TEXT,
+      employee_number TEXT UNIQUE, email TEXT UNIQUE, search_key TEXT
+    );
+    CREATE TABLE tickets (
+      id INTEGER PRIMARY KEY, title TEXT, description TEXT, priority TEXT,
+      status TEXT, reporter_id INTEGER REFERENCES employees(id), created_at TEXT
+    );
+    INSERT INTO employees VALUES
+      (1, 'Osoba', 'Fikcyjna', 'DEMO-099', 'legacy@example.invalid', 'osoba fikcyjna demo-099');
+    INSERT INTO tickets VALUES
+      (7, 'Fikcyjne starsze zgłoszenie', 'Opis demonstracyjny', 'low', 'new', 1, '2026-10-08');
+  `);
+  legacy.close();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const migration = spawnSync(process.execPath, ["scripts/init-db.js"], {
+      cwd: path.join(__dirname, ".."),
+      env: { ...process.env, MEDIDESK_DB_PATH: databasePath },
+      windowsHide: true,
+    });
+    assert.equal(migration.status, 0, migration.stderr.toString());
+    const migrated = new DatabaseSync(databasePath);
+    const ticket = migrated.prepare("SELECT * FROM tickets WHERE id = 7").get();
+    assert.equal(ticket.title, "Fikcyjne starsze zgłoszenie");
+    assert.equal(ticket.reporter_id, 1);
+    assert.equal(ticket.agent_id, null);
+    assert.equal(
+      migrated.prepare("SELECT email FROM employees WHERE id = 1").get().email,
+      "legacy@example.invalid",
+    );
+    assert.equal(
+      migrated.prepare("SELECT count(*) AS count FROM tickets").get().count,
+      1,
+    );
+    assert.equal(
+      migrated.prepare("SELECT count(*) AS count FROM agents").get().count,
+      4,
+    );
+    assert.deepEqual(migrated.prepare("PRAGMA foreign_key_check").all(), []);
+    migrated.close();
+  }
 });

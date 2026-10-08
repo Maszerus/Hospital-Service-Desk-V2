@@ -12,11 +12,35 @@
     <script src="js/main.js" defer></script>
   </head>
   <body>
+    <p class="lab-banner">
+      Lokalne laboratorium — używaj wyłącznie fikcyjnych danych
+    </p>
     <a class="skip-link" href="#main-content">Przejdź do treści</a>
     <header class="site-header">
       <a class="brand" href="dashboard.html"
         >MediDesk<span>Szpital Demonstracyjny · wsparcie IT</span></a
       >
+      <div class="lab-controls" id="lab-controls" hidden>
+        <button
+          class="button secondary"
+          type="button"
+          data-lab-variant="BEFORE"
+          aria-pressed="false"
+          disabled
+        >
+          LAB: BEFORE
+        </button>
+        <button
+          class="button secondary"
+          type="button"
+          data-lab-variant="AFTER"
+          aria-pressed="true"
+          disabled
+        >
+          LAB: AFTER
+        </button>
+        <a id="lab-xss-link" href="ticket-details.html">Przykład XSS</a>
+      </div>
       <div class="account">
         <p>Sesja demonstracyjna</p>
         <button
@@ -38,7 +62,10 @@
             <li><a href="new-ticket.html">Nowe zgłoszenie</a></li>
           </ul>
         </nav>
-        <p>Wersja demonstracyjna.<br />Wszystkie dane są fikcyjne.</p>
+        <p>
+          Wersja demonstracyjna.<br />Fikcyjni zgłaszający i zgłoszenia. Agenci:
+          zespół projektowy.
+        </p>
       </aside>
       <main id="main-content" tabindex="-1">
         <p id="page-message" role="status"></p>

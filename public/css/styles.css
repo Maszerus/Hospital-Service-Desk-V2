@@ -12,6 +12,27 @@
 * {
   box-sizing: border-box;
 }
+[hidden] {
+  display: none !important;
+}
+.lab-banner {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: #fff1d7;
+  color: #77500b;
+  text-align: center;
+  font-weight: 600;
+}
+.lab-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.lab-controls button[aria-pressed="true"] {
+  background: var(--primary-dark);
+  color: white;
+}
 body {
   margin: 0;
   background: var(--background);
@@ -98,6 +119,34 @@ h2 {
 }
 .ticket-description {
   white-space: pre-wrap;
+}
+dialog {
+  width: min(60rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--background);
+  color: var(--text);
+}
+dialog::backdrop {
+  background: rgb(20 35 50 / 60%);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+.delete-action {
+  margin-bottom: 1.5rem;
+}
+.button.danger {
+  background: #a12833;
+  border-color: #a12833;
+}
+.button.danger:hover {
+  background: #7e1f28;
 }
 .app-layout {
   display: grid;

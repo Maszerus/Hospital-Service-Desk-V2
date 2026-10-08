@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lokalny test CSRF | MediDesk</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="csrf.js" defer></script>
+  </head>
+  <body>
+    <p class="lab-banner">
+      Lokalne laboratorium — używaj wyłącznie fikcyjnych danych
+    </p>
+    <main>
+      <section class="panel form-panel">
+        <h1>Test CSRF z osobnego originu</h1>
+        <p>
+          Zaloguj się w MediDesk w tej samej przeglądarce. Ta strona wysyła
+          tylko zmianę statusu fikcyjnego zgłoszenia, bez tokenu CSRF lub ze
+          stałym błędnym tokenem demonstracyjnym.
+        </p>
+        <p>
+          BEFORE zapisze status. AFTER zwróci błąd 403. Wynik otworzy się w
+          nowej karcie; stan zgłoszenia sprawdź po odświeżeniu MediDesk.
+        </p>
+        <form id="csrf-form" method="post" target="_blank" rel="noopener">
+          <div class="field">
+            <label for="ticket-id">Numer zgłoszenia</label>
+            <input
+              id="ticket-id"
+              type="number"
+              min="1"
+              step="1"
+              value="1"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="status">Nowy status</label>
+            <select id="status" name="status" required>
+              <option value="closed">Zamknięte</option>
+              <option value="new">Nowe</option>
+              <option value="progress">W trakcie</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="token-mode">Token CSRF</label>
+            <select id="token-mode">
+              <option value="missing">Bez tokenu</option>
+              <option value="invalid">Błędny token</option>
+            </select>
+          </div>
+          <input
+            type="hidden"
+            id="test-token"
+            name="csrfToken"
+            value="invalid-lab-token"
+            disabled
+          />
+          <button class="button" type="submit" disabled>
+            Wyślij próbę CSRF
+          </button>
+        </form>
+        <p id="test-message" role="status"></p>
+        <p>
+          Stan początkowy: zgłoszenie MD-001 „Drukarka nie drukuje”, status „W
+          trakcie”. Po próbie przywróć ten status w MediDesk przyciskiem „Zapisz
+          status”. Żądanie aplikacji zawiera poprawny token.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

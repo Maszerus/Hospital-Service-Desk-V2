@@ -13,11 +13,35 @@
     <script src="js/main.js" defer></script>
   </head>
   <body>
+    <p class="lab-banner">
+      Lokalne laboratorium — używaj wyłącznie fikcyjnych danych
+    </p>
     <a class="skip-link" href="#main-content">Przejdź do treści</a>
     <header class="site-header">
       <a class="brand" href="dashboard.html"
         >MediDesk<span>Szpital Demonstracyjny · wsparcie IT</span></a
       >
+      <div class="lab-controls" id="lab-controls" hidden>
+        <button
+          class="button secondary"
+          type="button"
+          data-lab-variant="BEFORE"
+          aria-pressed="false"
+          disabled
+        >
+          LAB: BEFORE
+        </button>
+        <button
+          class="button secondary"
+          type="button"
+          data-lab-variant="AFTER"
+          aria-pressed="true"
+          disabled
+        >
+          LAB: AFTER
+        </button>
+        <a id="lab-xss-link" href="ticket-details.html">Przykład XSS</a>
+      </div>
       <div class="account">
         <p>Sesja demonstracyjna</p>
         <button
@@ -41,7 +65,10 @@
             </li>
           </ul>
         </nav>
-        <p>Wersja demonstracyjna.<br />Wszystkie dane są fikcyjne.</p>
+        <p>
+          Wersja demonstracyjna.<br />Fikcyjni zgłaszający i zgłoszenia. Agenci:
+          zespół projektowy.
+        </p>
       </aside>
       <main id="main-content" tabindex="-1">
         <p id="page-message" role="status"></p>
@@ -116,6 +143,16 @@
                 <option value="">Wybierz zgłaszającego</option>
               </select>
             </div>
+            <div class="field">
+              <label for="agent">Agent Service Desku</label>
+              <select id="agent" name="agentId">
+                <option value="">Nieprzypisane</option>
+              </select>
+              <p class="form-note">
+                Agenci to członkowie zespołu projektowego. Zgłaszających wybierz
+                z osobnej listy fikcyjnych pracowników.
+              </p>
+            </div>
             <div class="actions">
               <button class="button" type="submit" disabled>
                 Utwórz zgłoszenie
@@ -132,6 +169,21 @@
             ></p>
           </form>
         </section>
+        <dialog id="created-ticket-dialog" aria-labelledby="ticket-title">
+          <form method="dialog" class="dialog-actions">
+            <button class="button secondary" type="submit" autofocus>
+              Zamknij
+            </button>
+          </form>
+          <div id="created-ticket-content"></div>
+          <a
+            class="button secondary"
+            id="created-ticket-link"
+            href="tickets.html"
+          >
+            Otwórz stronę zgłoszenia
+          </a>
+        </dialog>
         <footer class="site-footer">
           MediDesk · lokalny demonstracyjny Service Desk · dane fikcyjne
         </footer>
